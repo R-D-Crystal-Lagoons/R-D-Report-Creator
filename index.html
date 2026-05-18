@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#00A0B0">
+<title>R&D Reports</title>
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUiZEIFJlcG9ydHMiLCJzaG9ydF9uYW1lIjoiUiZEIFJlcG9ydHMiLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI0Y1RjdGQSIsInRoZW1lX2NvbG9yIjoiIzAwQTBCMCJ9">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+:root {
+  --turquoise: #00A0B0;
+  --turquoise-dark: #008090;
+  --turquoise-light: #E0F7FA;
+  --turquoise-glow: rgba(0,160,176,0.15);
+  --bg: #F3F5F8;
+  --card: #FFFFFF;
+  --text: #1A2B3C;
+  --text2: #6B7B8D;
+  --danger: #E74C3C;
+  --danger-light: rgba(231,76,60,0.1);
+  --radius: 14px;
+  --shadow: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.1);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+input, textarea { font-family: inherit; outline: none; }
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, var(--turquoise) 0%, var(--turquoise-dark) 100%);
+  padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,160,176,0.3);
+}
+.header-back {
+  background: rgba(255,255,255,0.2); border-radius: 8px;
+  color: #fff; font-size: 18px; padding: 5px 10px;
+  margin-right: 10px; display: none;
+}
+.header-back.visible { display: inline-block; }
+.header-logo { height: 24px; }
+.header-title { color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+
+/* Content */
+.content { padding: 16px; max-width: 500px; margin: 0 auto; }
+.section-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.section-sub { font-size: 12px; color: var(--text2); margin-bottom: 16px; }
+
+/* Cards / Folders */
+.folder-card {
+  background: var(--card); border: 1px solid #E8ECF0; border-radius: var(--radius);
+  padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px; box-shadow: var(--shadow); transition: border-color 0.2s;
+}
+.folder-card:active { border-color: var(--turquoise); }
+.folder-icon {
+  width: 40px; height: 40px; border-radius: 10px; background: var(--turquoise-light);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  flex-shrink: 0; margin-right: 12px;
+}
+.folder-info { flex: 1; }
+.folder-name { font-weight: 600; font-size: 14px; }
+.folder-count { font-size: 11px; color: var(--text2); margin-top: 1px; }
+.folder-arrow { color: var(--text2); font-size: 16px; }
+
+/* New folder */
+.new-folder-box {
+  background: var(--card); border-radius: var(--radius); padding: 14px;
+  border: 2px solid var(--turquoise); box-shadow: 0 2px 12px var(--turquoise-glow);
+  margin-bottom: 10px;
+}
+.new-folder-box input {
+  width: 100%; border: 1px solid #E0E4E8; border-radius: 10px; padding: 9px 12px;
+  font-size: 13px; margin-bottom: 8px;
+}
+.new-folder-box input:focus { border-color: var(--turquoise); }
+.btn-row { display: flex; gap: 8px; }
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, var(--turquoise), var(--turquoise-dark));
+  color: #fff; border-radius: 12px; padding: 12px 0; font-weight: 700; font-size: 14px;
+  width: 100%; box-shadow: 0 3px 14px rgba(0,160,176,0.3); transition: opacity 0.2s;
+}
+.btn-primary:active { opacity: 0.85; }
+.btn-primary:disabled { background: #C0C8D0; box-shadow: none; }
+.btn-secondary {
+  background: var(--card); border: 1px solid var(--turquoise); color: var(--turquoise);
+  border-radius: 12px; padding: 12px 0; font-weight: 600; font-size: 13px;
+  width: 100%; transition: background 0.2s;
+}
+.btn-secondary:active { background: var(--turquoise-light); }
+.btn-ghost {
+  background: transparent; border: 2px dashed var(--turquoise); border-radius: var(--radius);
+  padding: 12px 0; color: var(--turquoise); font-weight: 600; font-size: 13px;
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.btn-sm {
+  padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 600;
+}
+.btn-cancel { background: #F0F2F5; color: var(--text2); border-radius: 12px; padding: 12px 0; font-weight: 600; font-size: 14px; width: 100%; }
+
+/* Photo card */
+.photo-card {
+  background: var(--card); border-radius: var(--radius); overflow: hidden;
+  border: 1px solid #E8ECF0; box-shadow: var(--shadow); margin-bottom: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.photo-card.selected {
+  border: 2px solid var(--turquoise);
+  box-shadow: 0 2px 12px var(--turquoise-glow);
+}
+.photo-card img { width: 100%; height: 180px; object-fit: cover; display: block; }
+.photo-img-wrap { position: relative; }
+.photo-select {
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px; border-radius: 8px;
+  background: rgba(255,255,255,0.9); border: 2px solid #CCC;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 700;
+}
+.photo-card.selected .photo-select {
+  background: var(--turquoise); border-color: var(--turquoise);
+}
+.photo-badges {
+  position: absolute; bottom: 6px; left: 6px; display: flex; gap: 4px;
+}
+.badge {
+  font-size: 9px; padding: 2px 7px; border-radius: 5px; font-weight: 600; color: #fff;
+}
+.badge-text { background: rgba(0,0,0,0.6); }
+.badge-audio { background: rgba(0,160,176,0.85); }
+.photo-meta { padding: 8px 12px; }
+.photo-date { font-size: 10px; color: var(--text2); margin-bottom: 3px; }
+.photo-text { font-size: 12px; line-height: 1.4; }
+.photo-transcript {
+  margin-top: 5px; padding: 5px 8px; background: var(--turquoise-light);
+  border-radius: 6px; font-size: 11px; color: var(--turquoise-dark); font-style: italic;
+}
+
+/* Camera */
+.camera-wrap {
+  background: #0a0a1a; border-radius: 14px; height: 260px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; margin-bottom: 12px; border: 2px solid #222;
+}
+.camera-wrap video { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+.camera-crosshair {
+  position: absolute; width: 50px; height: 50px;
+  border: 2px solid rgba(0,160,176,0.5); border-radius: 3px;
+  top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none;
+}
+.rec-indicator {
+  position: absolute; top: 10px; right: 10px;
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(231,76,60,0.9); border-radius: 16px; padding: 3px 10px;
+  color: #fff; font-size: 11px; font-weight: 700;
+}
+.rec-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Audio btn */
+.btn-audio {
+  border-radius: 10px; padding: 10px 0; font-weight: 600; font-size: 13px;
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-bottom: 10px;
+}
+.btn-audio.idle { background: var(--turquoise-glow); border: 1px solid var(--turquoise); color: var(--turquoise); }
+.btn-audio.recording { background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger); }
+
+/* Audio result */
+.audio-result {
+  padding: 7px 10px; background: var(--turquoise-light); border-radius: 8px;
+  font-size: 11px; color: var(--turquoise-dark); display: flex; align-items: center; gap: 7px;
+  margin-bottom: 10px;
+}
+.audio-result-title { font-weight: 600; }
+.audio-result-text { font-style: italic; margin-top: 1px; }
+.btn-delete-audio {
+  background: var(--danger-light); border: 1px solid var(--danger); border-radius: 8px;
+  padding: 8px 12px; color: var(--danger); font-weight: 600; font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* Report */
+.form-label { font-size: 12px; font-weight: 600; color: var(--text); display: block; margin-bottom: 5px; }
+.form-input {
+  width: 100%; border: 1px solid #E0E4E8; border-radius: 10px; padding: 9px 12px;
+  font-size: 13px; margin-bottom: 14px;
+}
+.form-input:focus { border-color: var(--turquoise); }
+.form-textarea {
+  width: 100%; border: 1px solid #E0E4E8; border-radius: 10px; padding: 9px 12px;
+  font-size: 13px; resize: vertical; font-family: inherit; margin-bottom: 6px;
+}
+.form-textarea:focus { border-color: var(--turquoise); }
+.toggle-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.toggle-btn {
+  padding: 5px 12px; border-radius: 7px; font-size: 11px; font-weight: 600;
+}
+.toggle-btn.active { background: var(--turquoise); color: #fff; }
+.toggle-btn.inactive { background: #E8ECF0; color: var(--text2); }
+
+/* Dropdown */
+.dropdown { position: relative; margin-bottom: 14px; }
+.dropdown-list {
+  position: absolute; top: 42px; left: 0; right: 0; background: var(--card);
+  border-radius: 10px; border: 1px solid #E0E4E8; max-height: 180px; overflow-y: auto;
+  z-index: 50; box-shadow: var(--shadow-lg);
+}
+.dropdown-item {
+  width: 100%; text-align: left; padding: 9px 12px; background: transparent;
+  border-bottom: 1px solid #F0F2F5; font-size: 12px;
+}
+.dropdown-item:active { background: var(--turquoise-light); }
+.dropdown-item-name { font-weight: 600; color: var(--text); }
+.dropdown-item-code { color: var(--text2); font-size: 10px; }
+.selected-project {
+  margin-top: 5px; padding: 6px 10px; background: var(--turquoise-light);
+  border-radius: 7px; font-size: 12px; color: var(--turquoise-dark); font-weight: 600;
+}
+
+/* Selected photos row */
+.selected-photos { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.mini-photo {
+  width: 54px; height: 54px; border-radius: 8px; overflow: hidden;
+  border: 2px solid var(--turquoise); position: relative;
+}
+.mini-photo img { width: 100%; height: 100%; object-fit: cover; }
+.mini-remove {
+  position: absolute; top: 1px; right: 1px; background: var(--danger); border-radius: 50%;
+  width: 16px; height: 16px; color: #fff; font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Report success */
+.success-icon {
+  width: 70px; height: 70px; border-radius: 50%; background: var(--turquoise-light);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; margin: 0 auto 16px;
+}
+.report-content-box {
+  background: var(--card); border-radius: var(--radius); padding: 16px; border: 1px solid #E8ECF0;
+  text-align: left; margin-bottom: 16px; font-size: 13px;
+}
+.report-content-box div { padding: 3px 0; }
+
+/* Empty state */
+.empty { text-align: center; padding: 50px 20px; color: var(--text2); }
+.empty-icon { font-size: 42px; margin-bottom: 10px; }
+
+/* Action row */
+.action-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.action-row button { flex: 1; }
+
+/* Hidden file input */
+.hidden { display: none; }
+
+/* Animations */
+.fade-in { animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* Progress */
+.progress-wrap { margin: 16px 0; }
+.progress-bar { height: 6px; background: #E8ECF0; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--turquoise), var(--turquoise-dark)); border-radius: 3px; transition: width 0.3s; }
+.progress-label { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+/* Settings */
+.settings-btn { background:rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:16px; padding:5px 8px; }
+.api-key-input { width:100%; border:1px solid #E0E4E8; border-radius:10px; padding:9px 12px; font-size:12px; font-family:monospace; }
+.api-key-input:focus { border-color:var(--turquoise); }
+.api-saved { color:var(--turquoise); font-size:12px; font-weight:600; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// R&D Reports PWA — Crystal Lagoons
+// Etapa 1: Captura + Etapa 2: Generación
+// ═══════════════════════════════════════════
+
+const CL_LOGO = "data:image/png;base64,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";
+
+const PROJECTS = [
+  {name:"Small Lagoons",code:"I-LD&C-0284"},{name:"Sistema LF - Evaluación",code:"I-LO&T-0280"},
+  {name:"Beach Heating System (Hot Reef)",code:"I-LD&C-0245"},{name:"Data Centers",code:"I-LD&C-0281"},
+  {name:"Automatización PBCC",code:"I-LO&T-0174"},{name:"Luces para Lagunas",code:"I-LD&C-0156"},
+  {name:"Sand Extraction",code:"I-LO&T-0283"},{name:"Carro Neumático",code:"I-LO&T-0017"},
+  {name:"Boyas y Mangueras",code:"I-LO&T-0214"},{name:"Lagunas Sin Filtración (Riego)",code:"I-LD&C-0282"},
+  {name:"Mejorar Estética Operacional",code:"I-LO&T-0194"},{name:"Look Natural Lagunas",code:"I-LD&C-0266"},
+  {name:"Indoor Lagoons",code:"I-LD&C-285"},{name:"Logos para Lagunas (Branding Fisico)",code:"I-LD&C-0157"},
+  {name:"Garage Bottom Cleaning System",code:"I-LD&C-0272"},{name:"Simulaciones Hidráulica Lagunas",code:"I-LO&T-168"},
+  {name:"Control Lagunas",code:"I-LO&T-0171"},{name:"Cost Reduction",code:"I-LD&C-0206"},
+  {name:"Recubrimiento Playas",code:"I-LD&C-0119"},{name:"Estacion Monitoreo Flotante",code:"I-LO&T-0212"},
+  {name:"Olas Estéticas Playas",code:"I-LD&C-0191"},{name:"How to prepare lagoons for winter",code:"I-LD&C-0219"},
+  {name:"Dpto. Estudios",code:"I-OTHE-0200"},{name:"LG Sonic Projects",code:""},
+  {name:"Químicos Reducción Evaporación",code:"I-LO&T-0018"},{name:"Misceláneos",code:""},
+  {name:"Domes for Lagoons",code:"I-LD&C-0268"},{name:"Sectorizacion de lagunas",code:"I-LD&C-0277"},
+  {name:"Olas Recreacionales de Surf",code:"I-LD&C-0162"},{name:"Liner Color",code:"I-LD&C-0003"},
+  {name:"Membrane Distillation",code:"I-DESA-0114"},{name:"Floating Surf Waves",code:"I-LD&C-0211"},
+  {name:"Playas con Arena",code:"I-LD&C-0167"},{name:"Solmax Projects",code:"I-LD&C-0271"},
+  {name:"Logo CL desde Avión",code:"I-LD&C-0205"},{name:"PV Flotante",code:"I-LD&C-0221"},
+  {name:"Centro de Investigación R&D",code:"I-OTHE-0118"},{name:"Lagunas Estancas",code:"I-LD&C-0025"},
+  {name:"Laser Bar",code:"I-OTHE-0257"},{name:"Ocean Tower",code:"I-OTHE-0242"},
+  {name:"AR Fishing",code:"I-OTHE-0254"},{name:"Lagunas Flotantes",code:"I-LD&C-0014"},
+  {name:"Realidad Virtual",code:"INT-OTH-5"},{name:"Cold Reef",code:""},
+  {name:"Coordinación I+D",code:"I-OTHE-0202"},
+];
+
+// ═══════ IndexedDB ═══════
+const DB_NAME = "RDReportsDB";
+const DB_VER = 1;
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains("folders")) d.createObjectStore("folders", {keyPath:"name"});
+      if (!d.objectStoreNames.contains("photos")) {
+        const s = d.createObjectStore("photos", {keyPath:"id", autoIncrement:true});
+        s.createIndex("folder","folder",{unique:false});
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => reject(e);
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction(store,"readonly");
+    tx.objectStore(store).getAll().onsuccess = (e) => resolve(e.target.result);
+    tx.onerror = reject;
+  });
+}
+
+function dbAdd(store, data) {
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction(store,"readwrite");
+    const req = tx.objectStore(store).add(data);
+    req.onsuccess = (e) => resolve(e.target.result);
+    tx.onerror = reject;
+  });
+}
+
+function dbPut(store, data) {
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction(store,"readwrite");
+    tx.objectStore(store).put(data).onsuccess = (e) => resolve(e.target.result);
+    tx.onerror = reject;
+  });
+}
+
+function dbDelete(store, key) {
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction(store,"readwrite");
+    tx.objectStore(store).delete(key).onsuccess = () => resolve();
+    tx.onerror = reject;
+  });
+}
+
+function dbGetByIndex(store, idx, val) {
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction(store,"readonly");
+    tx.objectStore(store).index(idx).getAll(val).onsuccess = (e) => resolve(e.target.result);
+    tx.onerror = reject;
+  });
+}
+
+// ═══════ State ═══════
+let state = {
+  screen: "home", // home | folder | camera | report
+  folders: [],
+  photos: [],
+  activeFolder: null,
+  showNewFolder: false,
+  newFolderName: "",
+  captureText: "",
+  isRecording: false,
+  recordingTime: 0,
+  mediaRecorder: null,
+  audioChunks: [],
+  capturedAudioBlob: null,
+  stream: null,
+  // Report
+  reportName: "",
+  selectedProject: "",
+  manualCode: "",
+  useManualCode: false,
+  projectSearch: "",
+  showProjectDropdown: false,
+  conclusions: "",
+  conclusionsRecording: false,
+  conclusionsRecTime: 0,
+  conclusionsAudioBlob: null,
+  conclusionsMediaRecorder: null,
+  conclusionsAudioChunks: [],
+  generating: false,
+  reportGenerated: false,
+  // API & generation
+  genProgress: 0,
+  genStatus: "",
+  generatedContent: null,
+  promptGenerated: false,
+  promptCopied: false,
+  claudeResponse: "",
+};
+
+let recInterval = null;
+let concRecInterval = null;
+
+function setState(updates) {
+  Object.assign(state, updates);
+  render();
+}
+
+// ═══════ Helpers ═══════
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString("es-CL",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+function fmtTime(s) {
+  return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+}
+function folderPhotos() { return state.photos.filter(p=>p.folder===state.activeFolder); }
+function folderSelectedCount() { return folderPhotos().filter(p=>p.selected).length; }
+function selectedPhotos() { return state.photos.filter(p=>p.selected && p.folder===state.activeFolder); }
+
+function blobToBase64(blob) {
+  return new Promise((res) => {
+    const r = new FileReader();
+    r.onloadend = () => res(r.result);
+    r.readAsDataURL(blob);
+  });
+}
+
+// ═══════ Actions ═══════
+async function loadData() {
+  await openDB();
+  const folders = await dbGetAll("folders");
+  const photos = await dbGetAll("photos");
+  setState({folders, photos});
+}
+
+async function addFolder() {
+  const name = state.newFolderName.trim();
+  if (!name || state.folders.find(f=>f.name===name)) return;
+  await dbAdd("folders",{name, created: Date.now()});
+  const folders = await dbGetAll("folders");
+  setState({folders, showNewFolder:false, newFolderName:""});
+}
+
+function openFolder(name) { setState({activeFolder:name, screen:"folder"}); }
+
+function goHome() {
+  stopCameraStream();
+  setState({screen:"home", activeFolder:null, showNewFolder:false});
+}
+
+function openCamera() { setState({screen:"camera", captureText:"", capturedAudioBlob:null, isRecording:false, recordingTime:0}); startCamera(); }
+
+function openReport() { setState({screen:"report", reportName:"", selectedProject:"", manualCode:"", useManualCode:false, projectSearch:"", showProjectDropdown:false, conclusions:"", conclusionsAudioBlob:null, conclusionsRecording:false, conclusionsRecTime:0, generating:false, reportGenerated:false}); }
+
+function goFolder() {
+  stopCameraStream();
+  setState({screen:"folder"});
+}
+
+// Camera
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}, audio:false});
+    state.stream = stream;
+    setTimeout(()=>{
+      const v = document.getElementById("cam-video");
+      if(v) { v.srcObject = stream; v.play(); }
+    },100);
+  } catch(e) { console.log("Camera error",e); }
+}
+
+function stopCameraStream() {
+  if(state.stream) { state.stream.getTracks().forEach(t=>t.stop()); state.stream=null; }
+  if(state.mediaRecorder && state.mediaRecorder.state!=="inactive") state.mediaRecorder.stop();
+  clearInterval(recInterval);
+}
+
+async function startAudioRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(stream);
+    state.audioChunks = [];
+    mr.ondataavailable = (e) => state.audioChunks.push(e.data);
+    mr.onstop = () => {
+      const blob = new Blob(state.audioChunks,{type:"audio/webm"});
+      stream.getTracks().forEach(t=>t.stop());
+      setState({capturedAudioBlob:blob, isRecording:false, recordingTime:0});
+      clearInterval(recInterval);
+    };
+    mr.start();
+    state.mediaRecorder = mr;
+    state.isRecording = true;
+    state.recordingTime = 0;
+    recInterval = setInterval(()=>{ state.recordingTime++; render(); },1000);
+    render();
+  } catch(e) { alert("No se pudo acceder al micrófono"); }
+}
+
+function stopAudioRec() { if(state.mediaRecorder && state.mediaRecorder.state!=="inactive") state.mediaRecorder.stop(); }
+
+// Conclusions audio
+async function startConcAudioRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(stream);
+    state.conclusionsAudioChunks = [];
+    mr.ondataavailable = (e) => state.conclusionsAudioChunks.push(e.data);
+    mr.onstop = () => {
+      const blob = new Blob(state.conclusionsAudioChunks,{type:"audio/webm"});
+      stream.getTracks().forEach(t=>t.stop());
+      setState({conclusionsAudioBlob:blob, conclusionsRecording:false});
+      clearInterval(concRecInterval);
+    };
+    mr.start();
+    state.conclusionsMediaRecorder = mr;
+    state.conclusionsRecording = true;
+    state.conclusionsRecTime = 0;
+    concRecInterval = setInterval(()=>{ state.conclusionsRecTime++; render(); },1000);
+    render();
+  } catch(e) { alert("No se pudo acceder al micrófono"); }
+}
+
+function stopConcAudioRec() { if(state.conclusionsMediaRecorder && state.conclusionsMediaRecorder.state!=="inactive") state.conclusionsMediaRecorder.stop(); }
+
+// Capture photo
+async function capturePhoto() {
+  const v = document.getElementById("cam-video");
+  if(!v) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = v.videoWidth || 640;
+  canvas.height = v.videoHeight || 480;
+  canvas.getContext("2d").drawImage(v,0,0);
+  const dataUrl = canvas.toDataURL("image/jpeg",0.8);
+
+  let audioB64 = null;
+  if(state.capturedAudioBlob) audioB64 = await blobToBase64(state.capturedAudioBlob);
+
+  const photo = {
+    folder: state.activeFolder,
+    imageData: dataUrl,
+    text: state.captureText,
+    audioData: audioB64,
+    timestamp: Date.now(),
+    selected: false,
+  };
+  const id = await dbAdd("photos", photo);
+  photo.id = id;
+  state.photos.push(photo);
+  stopCameraStream();
+  setState({screen:"folder", captureText:"", capturedAudioBlob:null, isRecording:false, recordingTime:0});
+}
+
+// Import from gallery
+function importFromGallery() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true;
+  input.onchange = async (e) => {
+    for(const file of e.target.files) {
+      const dataUrl = await blobToBase64(file);
+      const photo = {
+        folder: state.activeFolder,
+        imageData: dataUrl,
+        text: "",
+        audioData: null,
+        timestamp: Date.now(),
+        selected: false,
+      };
+      const id = await dbAdd("photos", photo);
+      photo.id = id;
+      state.photos.push(photo);
+    }
+    render();
+  };
+  input.click();
+}
+
+// Toggle select
+async function toggleSelect(id) {
+  const p = state.photos.find(x=>x.id===id);
+  if(p) { p.selected = !p.selected; await dbPut("photos",p); render(); }
+}
+
+// Remove from selection
+async function removeFromSelection(id) {
+  const p = state.photos.find(x=>x.id===id);
+  if(p) { p.selected = false; await dbPut("photos",p); render(); }
+}
+
+// ═══════ Prompt Generation with Photo IDs ═══════
+function generatePhotoId(index) {
+  return `[FOTO-${String(index + 1).padStart(3, "0")}]`;
+}
+
+function buildPrompt() {
+  const photos = selectedPhotos();
+  const projectCode = state.useManualCode ? state.manualCode : state.selectedProject;
+  const proj = PROJECTS.find(p => p.code === projectCode);
+  const projectName = proj ? proj.name : "Proyecto";
+
+  let photoList = photos.map((p, i) => {
+    const id = generatePhotoId(i);
+    let desc = `${id} — Fecha: ${fmtDate(p.timestamp)}`;
+    if (p.text) desc += `\n   Nota: ${p.text}`;
+    if (p.audioData) desc += `\n   [Incluye audio adjunto]`;
+    return desc;
+  }).join("\n\n");
+
+  let conclusionsText = state.conclusions || "Generar conclusiones basadas en las pruebas realizadas.";
+
+  const prompt = `Eres un ingeniero de Crystal Lagoons que escribe reportes técnicos de pruebas de I+D.
+Escribe en español técnico profesional.
+
+REPORTE: "${state.reportName}"
+PROYECTO: ${projectName} (${projectCode})
+
+FOTOS DE LAS PRUEBAS (adjuntas en el chat):
+${photoList}
+
+LINEAMIENTOS PARA CONCLUSIONES:
+${conclusionsText}
+
+INSTRUCCIONES:
+- Genera el contenido del reporte con la estructura indicada abajo.
+- Cuando hagas referencia a una foto, usa su identificador exacto (ej: ${generatePhotoId(0)}).
+- La app reemplazará automáticamente cada identificador por la imagen real en el documento Word.
+
+Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks, sin texto adicional) con esta estructura exacta:
+{"introduccion":"Texto de introducción...","pruebas":[{"titulo":"Título de la prueba 1","foto":"${generatePhotoId(0)}","descripcion":"Descripción detallada..."},{"titulo":"Título de la prueba 2","foto":"${generatePhotoId(1)}","descripcion":"Descripción detallada..."}],"conclusiones":"Texto de conclusiones..."}
+
+IMPORTANTE: Cada objeto en "pruebas" debe tener el campo "foto" con el identificador correspondiente. Puede haber más de una prueba por foto si es pertinente.`;
+
+  return prompt;
+}
+
+// ═══════ Parse Claude Response ═══════
+function parseClaudeResponse(text) {
+  try {
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean);
+    if (!parsed.introduccion || !parsed.pruebas || !parsed.conclusiones) {
+      throw new Error("Faltan campos requeridos en el JSON");
+    }
+    return parsed;
+  } catch (e) {
+    alert("Error al interpretar la respuesta: " + e.message + "\n\nAsegúrate de copiar SOLO el JSON que Claude generó.");
+    return null;
+  }
+}
+
+// ═══════ DOCX Generation ═══════
+async function generateDocx(content, photos, reportName, projectCode) {
+  const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer,
+          AlignmentType, HeadingLevel, BorderStyle, PageBreak, TableOfContents,
+          LevelFormat, PageNumber } = docx;
+
+  // Load CL logo for cover
+  const logoResp = await fetch(CL_LOGO);
+  const logoBlob = await logoResp.blob();
+  const logoBuffer = await logoBlob.arrayBuffer();
+
+  // Build photo map: [FOTO-001] -> buffer
+  const photoMap = {};
+  for (let i = 0; i < photos.length; i++) {
+    const id = generatePhotoId(i);
+    const resp = await fetch(photos[i].imageData);
+    const blob = await resp.blob();
+    const buf = await blob.arrayBuffer();
+    photoMap[id] = { buffer: buf, type: photos[i].imageData.startsWith("data:image/png") ? "png" : "jpg" };
+  }
+
+  const TURQ = "00A0B0";
+
+  // Build test sections — match photos by ID
+  const testChildren = [];
+  content.pruebas.forEach((prueba, i) => {
+    testChildren.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: `2.${i+1} ${prueba.titulo}`, color: TURQ, bold: true, size: 24, font: "Calibri" })]
+      })
+    );
+    // Find the photo referenced by this test
+    const fotoId = prueba.foto || generatePhotoId(i);
+    const photoData = photoMap[fotoId];
+    if (photoData) {
+      try {
+        testChildren.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 200, after: 100 },
+            children: [new ImageRun({
+              data: photoData.buffer,
+              transformation: { width: 450, height: 300 },
+              type: photoData.type === "png" ? "png" : "jpg",
+            })]
+          })
+        );
+        testChildren.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+            children: [new TextRun({ text: `Figura ${i+1}: ${prueba.titulo}`, size: 18, italics: true, color: "666666", font: "Calibri" })]
+          })
+        );
+      } catch(e) { console.log("Image error", e); }
+    }
+    // Description paragraphs
+    prueba.descripcion.split("\n").forEach(para => {
+      if (para.trim()) {
+        // Replace any remaining [FOTO-XXX] references in text with "Figura N"
+        let text = para.trim();
+        text = text.replace(/\[FOTO-(\d+)\]/g, (match, num) => `Figura ${parseInt(num)}`);
+        testChildren.push(new Paragraph({
+          spacing: { after: 120 },
+          children: [new TextRun({ text, size: 22, font: "Calibri" })]
+        }));
+      }
+    });
+  });
+
+  const doc = new Document({
+    styles: {
+      default: { document: { run: { font: "Calibri", size: 22 } } },
+      paragraphStyles: [
+        { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
+          run: { size: 32, bold: true, font: "Calibri", color: TURQ },
+          paragraph: { spacing: { before: 360, after: 200 }, alignment: AlignmentType.CENTER, outlineLevel: 0 } },
+        { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
+          run: { size: 26, bold: true, font: "Calibri", color: TURQ },
+          paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 } },
+      ]
+    },
+    numbering: {
+      config: [{
+        reference: "test-numbering",
+        levels: [{ level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: AlignmentType.LEFT,
+          style: { paragraph: { indent: { left: 720, hanging: 360 } } } }]
+      }]
+    },
+    sections: [
+      // ── COVER PAGE ──
+      {
+        properties: {
+          page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
+        },
+        children: [
+          new Paragraph({ spacing: { before: 4000 } }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "CONFIDENCIAL", color: TURQ, bold: true, size: 28, font: "Calibri" })]
+          }),
+          new Paragraph({ spacing: { before: 1200 } }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: reportName, color: TURQ, bold: true, size: 48, font: "Calibri" })]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 200 },
+            children: [new TextRun({ text: projectCode, color: TURQ, size: 28, font: "Calibri" })]
+          }),
+          new Paragraph({ spacing: { before: 2000 } }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new ImageRun({ data: logoBuffer, transformation: { width: 250, height: 50 }, type: "png" })]
+          }),
+        ]
+      },
+      // ── TOC + CONTENT ──
+      {
+        properties: {
+          page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } },
+        },
+        headers: {
+          default: new Header({
+            children: [new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [new TextRun({ text: "CONFIDENCIAL", size: 18, color: "808080", font: "Calibri" })]
+            })]
+          })
+        },
+        footers: {
+          default: new Footer({
+            children: [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              border: { top: { style: BorderStyle.SINGLE, size: 1, color: TURQ, space: 4 } },
+              children: [
+                new TextRun({ text: reportName + "  |  ", size: 16, color: TURQ, font: "Calibri" }),
+                new TextRun({ text: "©Crystal Lagoons® 2026. Todos los derechos reservados.   ", size: 16, color: "808080", font: "Calibri" }),
+                new TextRun({ children: [PageNumber.CURRENT], size: 16, color: TURQ, bold: true, font: "Calibri" }),
+              ]
+            })]
+          })
+        },
+        children: [
+          // TOC
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: "ÍNDICE", color: TURQ, bold: true })]
+          }),
+          new TableOfContents("Índice", { hyperlink: true, headingStyleRange: "1-2" }),
+          new Paragraph({ children: [new PageBreak()] }),
+
+          // 1. INTRODUCCIÓN
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: "1. Introducción", color: TURQ, bold: true })]
+          }),
+          ...content.introduccion.split("\n").filter(p=>p.trim()).map(para =>
+            new Paragraph({
+              spacing: { after: 160 },
+              children: [new TextRun({ text: para.trim(), size: 22, font: "Calibri" })]
+            })
+          ),
+
+          // 2. PRUEBAS REALIZADAS
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: "2. Pruebas Realizadas", color: TURQ, bold: true })]
+          }),
+          ...testChildren,
+
+          // 3. CONCLUSIONES
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: "3. Conclusiones", color: TURQ, bold: true })]
+          }),
+          ...content.conclusiones.split("\n").filter(p=>p.trim()).map(para =>
+            new Paragraph({
+              spacing: { after: 160 },
+              children: [new TextRun({ text: para.trim(), size: 22, font: "Calibri" })]
+            })
+          ),
+        ]
+      }
+    ]
+  });
+
+  const buffer = await Packer.toBlob(doc);
+  saveAs(buffer, `${reportName.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ ]/g, "_")}.docx`);
+  return true;
+}
+
+// ═══════ Generate Report (prompt-based flow) ═══════
+async function generateReport() {
+  // This is called when user pastes Claude's response
+  const responseText = document.getElementById("claude-response").value.trim();
+  if (!responseText) { alert("Pega la respuesta de Claude primero"); return; }
+
+  setState({ generating: true, genProgress: 30, genStatus: "Interpretando respuesta de Claude..." });
+
+  try {
+    const content = parseClaudeResponse(responseText);
+    if (!content) {
+      setState({ generating: false, genProgress: 0, genStatus: "" });
+      return;
+    }
+
+    setState({ genProgress: 60, genStatus: "Generando documento Word con fotos..." });
+
+    const photos = selectedPhotos();
+    const projectCode = state.useManualCode ? state.manualCode : state.selectedProject;
+    const success = await generateDocx(content, photos, state.reportName, projectCode);
+
+    if (success) {
+      setState({ genProgress: 100, genStatus: "¡Reporte descargado!", generating: false, reportGenerated: true, generatedContent: content });
+    }
+  } catch (e) {
+    alert("Error: " + e.message);
+    setState({ generating: false, genProgress: 0, genStatus: "" });
+  }
+}
+
+// ═══════ Render ═══════
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = renderHeader() + '<div class="content fade-in">' + renderScreen() + '</div>';
+  attachEvents();
+}
+
+function renderHeader() {
+  const showBack = state.screen !== "home";
+  return `<div class="header">
+    <div style="display:flex;align-items:center">
+      <button class="header-back ${showBack?'visible':''}" id="btn-back">←</button>
+      <img src="${CL_LOGO}" class="header-logo" alt="CL">
+    </div>
+    <span class="header-title">R&D Reports</span>
+  </div>`;
+}
+
+function renderScreen() {
+  switch(state.screen) {
+    case "home": return renderHome();
+    case "folder": return renderFolder();
+    case "camera": return renderCamera();
+    case "report": return state.reportGenerated ? renderReportSuccess() : renderReportForm();
+    default: return renderHome();
+  }
+}
+
+// ─── HOME ───
+function renderHome() {
+  let html = `<h2 class="section-title">Carpetas de Pruebas</h2>
+    <p class="section-sub">Selecciona o crea una carpeta para organizar tus capturas</p>`;
+
+  state.folders.forEach(f => {
+    const count = state.photos.filter(p=>p.folder===f.name).length;
+    html += `<button class="folder-card" data-folder="${f.name}">
+      <div style="display:flex;align-items:center">
+        <div class="folder-icon">📁</div>
+        <div class="folder-info">
+          <div class="folder-name">${f.name}</div>
+          <div class="folder-count">${count} foto${count!==1?'s':''}</div>
+        </div>
+      </div>
+      <span class="folder-arrow">›</span>
+    </button>`;
+  });
+
+  if(state.showNewFolder) {
+    html += `<div class="new-folder-box">
+      <input id="new-folder-input" placeholder="Nombre de la carpeta..." value="${state.newFolderName}">
+      <div class="btn-row">
+        <button class="btn-primary" id="btn-add-folder" style="flex:1">Crear</button>
+        <button class="btn-cancel" id="btn-cancel-folder" style="flex:1">Cancelar</button>
+      </div>
+    </div>`;
+  } else {
+    html += `<button class="btn-ghost" id="btn-new-folder" style="margin-top:6px"><span style="font-size:18px">+</span> Nueva Carpeta</button>`;
+  }
+  return html;
+}
+
+// ─── FOLDER ───
+function renderFolder() {
+  const fp = folderPhotos();
+  const selCount = folderSelectedCount();
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div>
+      <h2 class="section-title">${state.activeFolder}</h2>
+      <p class="section-sub" style="margin-bottom:0">${fp.length} foto${fp.length!==1?'s':''}${selCount>0?' · '+selCount+' seleccionada'+(selCount!==1?'s':''):''}</p>
+    </div>
+  </div>
+  <div class="action-row">
+    <button class="btn-primary" id="btn-open-camera" style="flex:1;padding:10px 0;font-size:13px">📷 Capturar</button>
+    <button class="btn-secondary" id="btn-gallery" style="flex:1;padding:10px 0;font-size:13px">🖼️ Galería</button>
+  </div>`;
+
+  if(fp.length === 0) {
+    html += `<div class="empty"><div class="empty-icon">📸</div><p style="font-weight:500;font-size:14px">Sin fotos aún</p><p style="font-size:12px">Toma la primera foto de esta carpeta</p></div>`;
+  } else {
+    fp.forEach(p => {
+      html += `<div class="photo-card ${p.selected?'selected':''}">
+        <div class="photo-img-wrap">
+          <img src="${p.imageData}" alt="">
+          <button class="photo-select" data-toggle="${p.id}">${p.selected?'✓':''}</button>
+          <div class="photo-badges">
+            ${p.text?'<span class="badge badge-text">📝 Texto</span>':''}
+            ${p.audioData?'<span class="badge badge-audio">🎤 Audio</span>':''}
+          </div>
+        </div>
+        <div class="photo-meta">
+          <div class="photo-date">📅 ${fmtDate(p.timestamp)}</div>
+          ${p.text?'<div class="photo-text">'+p.text+'</div>':''}
+          ${p.audioData?'<div class="photo-transcript">🔊 Audio adjunto (se transcribirá al generar reporte)</div>':''}
+        </div>
+      </div>`;
+    });
+  }
+
+  // Generate report button
+  html += `<button class="btn-primary" id="btn-open-report" style="margin-top:16px" ${selCount===0?'disabled':''}>
+    📄 Generar Reporte (${selCount} foto${selCount!==1?'s':''} seleccionada${selCount!==1?'s':''})
+  </button>`;
+
+  return html;
+}
+
+// ─── CAMERA ───
+function renderCamera() {
+  return `<div class="camera-wrap">
+    <video id="cam-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px"></video>
+    <div class="camera-crosshair"></div>
+    ${state.isRecording?`<div class="rec-indicator"><div class="rec-dot"></div>${fmtTime(state.recordingTime)}</div>`:''}
+  </div>
+  <textarea id="capture-text" class="form-textarea" rows="3" placeholder="Agrega una nota de texto a esta foto..." style="background:#1a1a2e;border-color:#333;color:#fff;margin-bottom:10px">${state.captureText}</textarea>
+  <button class="btn-audio ${state.isRecording?'recording':'idle'}" id="btn-toggle-audio">
+    ${state.isRecording?'⏹ Detener '+fmtTime(state.recordingTime):'🎤 Grabar Audio'}
+  </button>
+  ${state.capturedAudioBlob?'<div class="audio-result"><span>🔊</span><div><div class="audio-result-title">Audio grabado ✓</div></div></div>':''}
+  <button class="btn-primary" id="btn-capture" style="margin-top:4px">📸 Capturar Foto</button>`;
+}
+
+// ─── REPORT FORM ───
+function renderReportForm() {
+  const sp = selectedPhotos();
+  let projOptions = PROJECTS.filter(p=>p.name.toLowerCase().includes(state.projectSearch.toLowerCase())||p.code.toLowerCase().includes(state.projectSearch.toLowerCase()));
+  const selProj = PROJECTS.find(p=>p.code===state.selectedProject);
+  const hasRequiredFields = sp.length > 0 && state.reportName;
+  const promptReady = state.promptGenerated;
+
+  let html = `<h2 class="section-title">Generar Reporte</h2>
+    <p class="section-sub">3 pasos: configurar → copiar prompt a Claude.ai → pegar respuesta</p>
+
+    <label class="form-label">Nombre del Reporte</label>
+    <input class="form-input" id="report-name" placeholder="Ej: Reporte de Turbidez Laguna Norte" value="${state.reportName}">
+
+    <label class="form-label">Código de Proyecto</label>
+    <div class="toggle-row">
+      <button class="toggle-btn btn-sm ${!state.useManualCode?'active':'inactive'}" id="btn-mode-list">Lista</button>
+      <button class="toggle-btn btn-sm ${state.useManualCode?'active':'inactive'}" id="btn-mode-manual">Manual</button>
+    </div>`;
+
+  if(state.useManualCode) {
+    html += `<input class="form-input" id="manual-code" placeholder="Ej: I-LD&C-0284" value="${state.manualCode}">`;
+  } else {
+    html += `<div class="dropdown">
+      <input class="form-input" id="project-search" placeholder="Buscar proyecto..." value="${state.projectSearch}" style="margin-bottom:4px">
+      ${selProj?`<div class="selected-project">✓ ${selProj.name} — ${selProj.code}</div>`:''}
+      ${state.showProjectDropdown?`<div class="dropdown-list">${projOptions.map(p=>`<button class="dropdown-item" data-project-code="${p.code}"><div class="dropdown-item-name">${p.name}</div><div class="dropdown-item-code">${p.code||'Sin código'}</div></button>`).join('')}</div>`:''}
+    </div>`;
+  }
+
+  html += `<label class="form-label">Lineamientos para Conclusiones</label>
+    <textarea class="form-textarea" id="conclusions-text" rows="4" placeholder="Describe los principales lineamientos y puntos clave que deben incluirse en las conclusiones...">${state.conclusions}</textarea>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <button class="btn-audio ${state.conclusionsRecording?'recording':'idle'}" id="btn-conc-audio" style="flex:1">
+        ${state.conclusionsRecording?'⏹ Detener '+fmtTime(state.conclusionsRecTime):'🎤 Grabar Audio'}
+      </button>
+      ${state.conclusionsAudioBlob&&!state.conclusionsRecording?'<button class="btn-delete-audio" id="btn-conc-audio-del">🗑</button>':''}
+    </div>
+    ${state.conclusionsAudioBlob&&!state.conclusionsRecording?'<div class="audio-result" style="margin-bottom:10px"><span>🔊</span><div><div class="audio-result-title">Audio de lineamientos grabado ✓</div><div class="audio-result-text">Escúchalo antes de enviar a Claude para incluir los puntos clave en el texto</div></div></div>':''}
+
+    <label class="form-label">Fotos incluidas (${sp.length})</label>
+    <div class="selected-photos">
+      ${sp.map((p,i)=>`<div class="mini-photo" style="position:relative"><img src="${p.imageData}"><button class="mini-remove" data-remove="${p.id}">✕</button><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);color:#fff;font-size:8px;text-align:center;padding:1px">${generatePhotoId(i)}</div></div>`).join('')}
+      ${sp.length===0?'<div style="color:var(--text2);font-size:12px;font-style:italic">Selecciona fotos desde la carpeta</div>':''}
+    </div>`;
+
+  // ── STEP 1: Generate Prompt ──
+  html += `<div style="margin-top:16px;padding:14px;background:var(--card);border-radius:var(--radius);border:1px solid #E8ECF0">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">Paso 1: Generar Prompt</div>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:10px">Se genera el texto que debes copiar y pegar en Claude.ai junto con las fotos</p>
+    <button class="btn-primary" id="btn-gen-prompt" ${!hasRequiredFields?'disabled':''} style="font-size:13px;padding:10px 0">
+      📋 Generar y Copiar Prompt
+    </button>
+    ${state.promptCopied?'<div style="color:var(--turquoise);font-size:11px;font-weight:600;margin-top:6px;text-align:center">✓ Prompt copiado al portapapeles — pégalo en Claude.ai junto con las fotos</div>':''}
+  </div>`;
+
+  // ── STEP 2: Paste Response ──
+  html += `<div style="margin-top:10px;padding:14px;background:var(--card);border-radius:var(--radius);border:1px solid #E8ECF0">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">Paso 2: Pegar Respuesta de Claude</div>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:10px">Copia el JSON que Claude generó y pégalo aquí</p>
+    <textarea class="form-textarea" id="claude-response" rows="6" placeholder='Pega aquí la respuesta JSON de Claude...\n\nEj: {"introduccion":"...","pruebas":[...],"conclusiones":"..."}'>${state.claudeResponse||''}</textarea>
+  </div>`;
+
+  // ── STEP 3: Generate DOCX ──
+  html += `<div style="margin-top:10px;padding:14px;background:var(--card);border-radius:var(--radius);border:1px solid #E8ECF0">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">Paso 3: Generar Word</div>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:10px">La app combina el texto de Claude con tus fotos y genera el .docx</p>
+    <button class="btn-primary" id="btn-generate" ${state.generating?'disabled':''} style="font-size:13px;padding:10px 0">
+      ${state.generating?'⏳ Generando...':'📄 Generar y Descargar .docx'}
+    </button>
+    ${state.generating?`<div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:${state.genProgress}%"></div></div><div class="progress-label">${state.genStatus}</div></div>`:''}
+  </div>`;
+
+  return html;
+}
+
+// ─── REPORT SUCCESS ───
+function renderReportSuccess() {
+  const sp = selectedPhotos();
+  const c = state.generatedContent;
+  return `<div style="text-align:center;padding:30px 0">
+    <div class="success-icon">✅</div>
+    <h2 class="section-title" style="margin-bottom:6px">Reporte Generado y Descargado</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:20px">"${state.reportName}" — formato Word Crystal Lagoons</p>
+    <div class="report-content-box">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Contenido generado por IA:</div>
+      <div>📌 Portada: ${state.reportName}</div>
+      <div>📑 Índice automático</div>
+      <div>📝 Introducción: ${c?c.introduccion.substring(0,80)+'...':'—'}</div>
+      <div>🧪 ${c?c.pruebas.length:sp.length} pruebas documentadas con fotos</div>
+      <div>📊 Conclusiones generadas</div>
+      <div>🔒 Marca "CONFIDENCIAL"</div>
+    </div>
+    <button class="btn-primary" id="btn-download-report">📥 Descargar de nuevo .docx</button>
+    <button class="btn-secondary" id="btn-new-report" style="margin-top:10px">← Volver a la carpeta</button>
+  </div>`;
+}
+
+// ═══════ Event Binding ═══════
+function attachEvents() {
+  // Back
+  const backBtn = document.getElementById("btn-back");
+  if(backBtn) backBtn.onclick = () => {
+    if(state.screen==="camera") goFolder();
+    else if(state.screen==="report") { setState({screen:"folder", reportGenerated:false, promptCopied:false, claudeResponse:""}); }
+    else goHome();
+  };
+
+  // Folders
+  document.querySelectorAll("[data-folder]").forEach(el=>{
+    el.onclick = () => openFolder(el.dataset.folder);
+  });
+
+  // New folder
+  const nf = document.getElementById("btn-new-folder");
+  if(nf) nf.onclick = () => setState({showNewFolder:true});
+  const cf = document.getElementById("btn-cancel-folder");
+  if(cf) cf.onclick = () => setState({showNewFolder:false, newFolderName:""});
+  const af = document.getElementById("btn-add-folder");
+  if(af) af.onclick = addFolder;
+  const nfi = document.getElementById("new-folder-input");
+  if(nfi) { nfi.oninput = (e)=>{state.newFolderName=e.target.value;}; nfi.focus(); nfi.onkeydown=(e)=>{if(e.key==="Enter")addFolder();}; }
+
+  // Folder actions
+  const oc = document.getElementById("btn-open-camera");
+  if(oc) oc.onclick = openCamera;
+  const gl = document.getElementById("btn-gallery");
+  if(gl) gl.onclick = importFromGallery;
+  const or = document.getElementById("btn-open-report");
+  if(or) or.onclick = openReport;
+
+  // Toggle select
+  document.querySelectorAll("[data-toggle]").forEach(el=>{
+    el.onclick = (e) => { e.stopPropagation(); toggleSelect(Number(el.dataset.toggle)); };
+  });
+
+  // Camera
+  const ct = document.getElementById("capture-text");
+  if(ct) ct.oninput = (e)=>{state.captureText=e.target.value;};
+  const ta = document.getElementById("btn-toggle-audio");
+  if(ta) ta.onclick = ()=>{ state.isRecording ? stopAudioRec() : startAudioRec(); };
+  const cp = document.getElementById("btn-capture");
+  if(cp) cp.onclick = capturePhoto;
+
+  // Reconnect video stream
+  if(state.screen==="camera" && state.stream) {
+    setTimeout(()=>{
+      const v = document.getElementById("cam-video");
+      if(v && state.stream) { v.srcObject = state.stream; v.play(); }
+    },50);
+  }
+
+  // Report form
+  const rn = document.getElementById("report-name");
+  if(rn) rn.oninput = (e)=>{state.reportName=e.target.value;};
+  const ml = document.getElementById("btn-mode-list");
+  if(ml) ml.onclick = ()=>setState({useManualCode:false});
+  const mm = document.getElementById("btn-mode-manual");
+  if(mm) mm.onclick = ()=>setState({useManualCode:true});
+  const mc = document.getElementById("manual-code");
+  if(mc) mc.oninput = (e)=>{state.manualCode=e.target.value;};
+  const ps = document.getElementById("project-search");
+  if(ps) { ps.oninput=(e)=>{state.projectSearch=e.target.value;state.showProjectDropdown=true;render();}; ps.onfocus=()=>{state.showProjectDropdown=true;render();}; }
+  document.querySelectorAll("[data-project-code]").forEach(el=>{
+    el.onclick = ()=>{state.selectedProject=el.dataset.projectCode;state.projectSearch="";state.showProjectDropdown=false;render();};
+  });
+  const conc = document.getElementById("conclusions-text");
+  if(conc) conc.oninput = (e)=>{state.conclusions=e.target.value;};
+  const ca = document.getElementById("btn-conc-audio");
+  if(ca) ca.onclick = ()=>{ state.conclusionsRecording ? stopConcAudioRec() : startConcAudioRec(); };
+  const cad = document.getElementById("btn-conc-audio-del");
+  if(cad) cad.onclick = ()=>setState({conclusionsAudioBlob:null});
+  document.querySelectorAll("[data-remove]").forEach(el=>{
+    el.onclick = (e)=>{ e.stopPropagation(); removeFromSelection(Number(el.dataset.remove)); };
+  });
+  const gen = document.getElementById("btn-generate");
+  if(gen && !state.generating) gen.onclick = generateReport;
+  const gp = document.getElementById("btn-gen-prompt");
+  if(gp) gp.onclick = async () => {
+    const prompt = buildPrompt();
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setState({promptCopied: true, promptGenerated: true});
+    } catch(e) {
+      // Fallback: show prompt in textarea for manual copy
+      const ta = document.createElement("textarea");
+      ta.value = prompt;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setState({promptCopied: true, promptGenerated: true});
+    }
+  };
+  const cr = document.getElementById("claude-response");
+  if(cr) cr.oninput = (e) => { state.claudeResponse = e.target.value; };
+  const dl = document.getElementById("btn-download-report");
+  if(dl) dl.onclick = async () => {
+    if(state.generatedContent) {
+      const photos = selectedPhotos();
+      const projectCode = state.useManualCode ? state.manualCode : state.selectedProject;
+      await generateDocx(state.generatedContent, photos, state.reportName, projectCode);
+    }
+  };
+  const nr = document.getElementById("btn-new-report");
+  if(nr) nr.onclick = () => setState({screen:"folder", reportGenerated:false, generatedContent:null, promptCopied:false, claudeResponse:""});
+
+  // Close dropdown on outside click
+  document.addEventListener("click",(e)=>{
+    if(state.showProjectDropdown && !e.target.closest(".dropdown")) { state.showProjectDropdown=false; render(); }
+  },{once:true});
+}
+
+// ═══════ Init ═══════
+loadData();
+</script>
+</body>
+</html>
