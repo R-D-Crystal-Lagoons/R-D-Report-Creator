@@ -401,6 +401,8 @@ let state = {
   mediaRecorder: null,
   audioChunks: [],
   capturedAudioBlob: null,
+  audioTranscript: "",
+  speechRec: null,
   stream: null,
   // Report
   reportName: "",
@@ -413,6 +415,8 @@ let state = {
   conclusionsRecording: false,
   conclusionsRecTime: 0,
   conclusionsAudioBlob: null,
+  conclusionsTranscript: "",
+  concSpeechRec: null,
   conclusionsMediaRecorder: null,
   conclusionsAudioChunks: [],
   generating: false,
@@ -505,45 +509,107 @@ function stopCameraStream() {
 
 async function startAudioRec() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    const mr = new MediaRecorder(stream);
+    const audioStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(audioStream);
     state.audioChunks = [];
     mr.ondataavailable = (e) => state.audioChunks.push(e.data);
     mr.onstop = () => {
       const blob = new Blob(state.audioChunks,{type:"audio/webm"});
-      stream.getTracks().forEach(t=>t.stop());
-      setState({capturedAudioBlob:blob, isRecording:false, recordingTime:0});
+      audioStream.getTracks().forEach(t=>t.stop());
+      state.capturedAudioBlob = blob;
+      state.isRecording = false;
       clearInterval(recInterval);
+      // Stop speech recognition
+      if (state.speechRec) { try { state.speechRec.stop(); } catch(e){} state.speechRec = null; }
+      render();
     };
     mr.start();
     state.mediaRecorder = mr;
     state.isRecording = true;
     state.recordingTime = 0;
-    recInterval = setInterval(()=>{ state.recordingTime++; render(); },1000);
+    state.audioTranscript = "";
+    // Start live transcription
+    startSpeechRecognition("capture");
+    // Update only the timer elements, NOT full render
+    recInterval = setInterval(()=>{
+      state.recordingTime++;
+      const timerEl = document.getElementById("rec-timer");
+      if(timerEl) timerEl.textContent = fmtTime(state.recordingTime);
+      const btnTimer = document.getElementById("btn-audio-timer");
+      if(btnTimer) btnTimer.textContent = "⏹ Detener " + fmtTime(state.recordingTime);
+    },1000);
     render();
   } catch(e) { alert("No se pudo acceder al micrófono"); }
 }
 
 function stopAudioRec() { if(state.mediaRecorder && state.mediaRecorder.state!=="inactive") state.mediaRecorder.stop(); }
 
+// ═══════ Web Speech API — Live Transcription ═══════
+function startSpeechRecognition(target) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return; // Not available
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "es-CL";
+  let finalTranscript = "";
+  recognition.onresult = (event) => {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript + " ";
+      } else {
+        interim += event.results[i][0].transcript;
+      }
+    }
+    if (target === "capture") {
+      state.audioTranscript = finalTranscript + interim;
+      const el = document.getElementById("live-transcript");
+      if (el) el.textContent = state.audioTranscript || "Escuchando...";
+    } else if (target === "conclusions") {
+      state.conclusionsTranscript = finalTranscript + interim;
+      const el = document.getElementById("conc-live-transcript");
+      if (el) el.textContent = state.conclusionsTranscript || "Escuchando...";
+    }
+  };
+  recognition.onerror = (e) => { console.log("Speech error", e.error); };
+  recognition.onend = () => {
+    // Save final transcript
+    if (target === "capture") state.audioTranscript = finalTranscript;
+    else if (target === "conclusions") state.conclusionsTranscript = finalTranscript;
+  };
+  recognition.start();
+  if (target === "capture") state.speechRec = recognition;
+  else state.concSpeechRec = recognition;
+}
+
 // Conclusions audio
 async function startConcAudioRec() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    const mr = new MediaRecorder(stream);
+    const audioStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(audioStream);
     state.conclusionsAudioChunks = [];
     mr.ondataavailable = (e) => state.conclusionsAudioChunks.push(e.data);
     mr.onstop = () => {
       const blob = new Blob(state.conclusionsAudioChunks,{type:"audio/webm"});
-      stream.getTracks().forEach(t=>t.stop());
-      setState({conclusionsAudioBlob:blob, conclusionsRecording:false});
+      audioStream.getTracks().forEach(t=>t.stop());
+      state.conclusionsAudioBlob = blob;
+      state.conclusionsRecording = false;
       clearInterval(concRecInterval);
+      if (state.concSpeechRec) { try { state.concSpeechRec.stop(); } catch(e){} state.concSpeechRec = null; }
+      render();
     };
     mr.start();
     state.conclusionsMediaRecorder = mr;
     state.conclusionsRecording = true;
     state.conclusionsRecTime = 0;
-    concRecInterval = setInterval(()=>{ state.conclusionsRecTime++; render(); },1000);
+    state.conclusionsTranscript = "";
+    startSpeechRecognition("conclusions");
+    concRecInterval = setInterval(()=>{
+      state.conclusionsRecTime++;
+      const el = document.getElementById("conc-rec-timer");
+      if(el) el.textContent = "⏹ Detener " + fmtTime(state.conclusionsRecTime);
+    },1000);
     render();
   } catch(e) { alert("No se pudo acceder al micrófono"); }
 }
@@ -568,6 +634,7 @@ async function capturePhoto() {
     imageData: dataUrl,
     text: state.captureText,
     audioData: audioB64,
+    audioTranscript: state.audioTranscript || "",
     timestamp: Date.now(),
     selected: false,
   };
@@ -575,7 +642,7 @@ async function capturePhoto() {
   photo.id = id;
   state.photos.push(photo);
   stopCameraStream();
-  setState({screen:"folder", captureText:"", capturedAudioBlob:null, isRecording:false, recordingTime:0});
+  setState({screen:"folder", captureText:"", capturedAudioBlob:null, isRecording:false, recordingTime:0, audioTranscript:""});
 }
 
 // Import from gallery
@@ -630,12 +697,17 @@ function buildPrompt() {
   let photoList = photos.map((p, i) => {
     const id = generatePhotoId(i);
     let desc = `${id} — Fecha: ${fmtDate(p.timestamp)}`;
-    if (p.text) desc += `\n   Nota: ${p.text}`;
-    if (p.audioData) desc += `\n   [Incluye audio adjunto]`;
+    if (p.text) desc += `\n   Nota escrita: ${p.text}`;
+    if (p.audioTranscript) desc += `\n   Audio transcrito: ${p.audioTranscript}`;
+    if (!p.text && !p.audioTranscript) desc += `\n   (Sin descripción)`;
     return desc;
   }).join("\n\n");
 
-  let conclusionsText = state.conclusions || "Generar conclusiones basadas en las pruebas realizadas.";
+  let conclusionsText = state.conclusions || "";
+  if (state.conclusionsTranscript) {
+    conclusionsText += (conclusionsText ? "\n\nAudio transcrito: " : "") + state.conclusionsTranscript;
+  }
+  if (!conclusionsText) conclusionsText = "Generar conclusiones basadas en las pruebas realizadas.";
 
   const prompt = `Eres un ingeniero de Crystal Lagoons que escribe reportes técnicos de pruebas de I+D.
 Escribe en español técnico profesional.
@@ -643,21 +715,24 @@ Escribe en español técnico profesional.
 REPORTE: "${state.reportName}"
 PROYECTO: ${projectName} (${projectCode})
 
-FOTOS DE LAS PRUEBAS (adjuntas en el chat):
+INFORMACIÓN DE LAS PRUEBAS:
+Cada prueba tiene un identificador de foto (ej: ${generatePhotoId(0)}). La información sobre cada prueba proviene de las notas escritas y los audios transcritos que se detallan abajo. NO necesitas describir las fotos — usa la información de texto y audio como fuente.
+
 ${photoList}
 
 LINEAMIENTOS PARA CONCLUSIONES:
 ${conclusionsText}
 
 INSTRUCCIONES:
-- Genera el contenido del reporte con la estructura indicada abajo.
-- Cuando hagas referencia a una foto, usa su identificador exacto (ej: ${generatePhotoId(0)}).
-- La app reemplazará automáticamente cada identificador por la imagen real en el documento Word.
+1. Genera el contenido del reporte usando la información de texto y audio de cada prueba.
+2. NO describas las imágenes — toda la información relevante ya está en las notas y transcripciones.
+3. Donde corresponda insertar una foto en el documento, indica el identificador exacto (ej: ${generatePhotoId(0)}).
+4. La app reemplazará automáticamente cada identificador por la imagen real en el documento Word.
 
 Responde ÚNICAMENTE con un JSON válido (sin markdown, sin backticks, sin texto adicional) con esta estructura exacta:
-{"introduccion":"Texto de introducción...","pruebas":[{"titulo":"Título de la prueba 1","foto":"${generatePhotoId(0)}","descripcion":"Descripción detallada..."},{"titulo":"Título de la prueba 2","foto":"${generatePhotoId(1)}","descripcion":"Descripción detallada..."}],"conclusiones":"Texto de conclusiones..."}
+{"introduccion":"Texto de introducción...","pruebas":[{"titulo":"Título de la prueba 1","foto":"${generatePhotoId(0)}","descripcion":"Descripción basada en notas/audio..."},{"titulo":"Título de la prueba 2","foto":"${generatePhotoId(1)}","descripcion":"Descripción basada en notas/audio..."}],"conclusiones":"Texto de conclusiones..."}
 
-IMPORTANTE: Cada objeto en "pruebas" debe tener el campo "foto" con el identificador correspondiente. Puede haber más de una prueba por foto si es pertinente.`;
+IMPORTANTE: El campo "foto" es solo un placeholder para que la app inserte la imagen. El contenido de "descripcion" debe basarse en las notas escritas y audios transcritos, NO en una descripción visual de la foto.`;
 
   return prompt;
 }
@@ -993,7 +1068,7 @@ function renderFolder() {
         <div class="photo-meta">
           <div class="photo-date">📅 ${fmtDate(p.timestamp)}</div>
           ${p.text?'<div class="photo-text">'+p.text+'</div>':''}
-          ${p.audioData?'<div class="photo-transcript">🔊 Audio adjunto (se transcribirá al generar reporte)</div>':''}
+          ${p.audioData?'<div class="photo-transcript">🔊 '+(p.audioTranscript||'Audio adjunto (sin transcripción)')+'</div>':''}
         </div>
       </div>`;
     });
@@ -1012,13 +1087,14 @@ function renderCamera() {
   return `<div class="camera-wrap">
     <video id="cam-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;border-radius:12px"></video>
     <div class="camera-crosshair"></div>
-    ${state.isRecording?`<div class="rec-indicator"><div class="rec-dot"></div>${fmtTime(state.recordingTime)}</div>`:''}
+    ${state.isRecording?`<div class="rec-indicator"><div class="rec-dot"></div><span id="rec-timer">${fmtTime(state.recordingTime)}</span></div>`:''}
   </div>
   <textarea id="capture-text" class="form-textarea" rows="3" placeholder="Agrega una nota de texto a esta foto..." style="background:#1a1a2e;border-color:#333;color:#fff;margin-bottom:10px">${state.captureText}</textarea>
   <button class="btn-audio ${state.isRecording?'recording':'idle'}" id="btn-toggle-audio">
-    ${state.isRecording?'⏹ Detener '+fmtTime(state.recordingTime):'🎤 Grabar Audio'}
+    <span id="btn-audio-timer">${state.isRecording?'⏹ Detener '+fmtTime(state.recordingTime):'🎤 Grabar Audio'}</span>
   </button>
-  ${state.capturedAudioBlob?'<div class="audio-result"><span>🔊</span><div><div class="audio-result-title">Audio grabado ✓</div></div></div>':''}
+  ${state.isRecording?`<div class="audio-result" style="margin-top:6px;margin-bottom:10px"><span>🎙️</span><div><div class="audio-result-title">Transcribiendo en vivo...</div><div class="audio-result-text" id="live-transcript">${state.audioTranscript||'Escuchando...'}</div></div></div>`:''}
+  ${state.capturedAudioBlob&&!state.isRecording?`<div class="audio-result" style="margin-bottom:10px"><span>🔊</span><div><div class="audio-result-title">Audio grabado ✓</div>${state.audioTranscript?'<div class="audio-result-text">'+state.audioTranscript+'</div>':''}</div></div>`:''}
   <button class="btn-primary" id="btn-capture" style="margin-top:4px">📸 Capturar Foto</button>`;
 }
 
@@ -1056,13 +1132,14 @@ function renderReportForm() {
     <textarea class="form-textarea" id="conclusions-text" rows="4" placeholder="Describe los principales lineamientos y puntos clave que deben incluirse en las conclusiones...">${state.conclusions}</textarea>
     <div style="display:flex;gap:8px;margin-bottom:6px">
       <button class="btn-audio ${state.conclusionsRecording?'recording':'idle'}" id="btn-conc-audio" style="flex:1">
-        ${state.conclusionsRecording?'⏹ Detener '+fmtTime(state.conclusionsRecTime):'🎤 Grabar Audio'}
+        <span id="conc-rec-timer">${state.conclusionsRecording?'⏹ Detener '+fmtTime(state.conclusionsRecTime):'🎤 Grabar Audio'}</span>
       </button>
       ${state.conclusionsAudioBlob&&!state.conclusionsRecording?'<button class="btn-delete-audio" id="btn-conc-audio-del">🗑</button>':''}
     </div>
-    ${state.conclusionsAudioBlob&&!state.conclusionsRecording?'<div class="audio-result" style="margin-bottom:10px"><span>🔊</span><div><div class="audio-result-title">Audio de lineamientos grabado ✓</div><div class="audio-result-text">Escúchalo antes de enviar a Claude para incluir los puntos clave en el texto</div></div></div>':''}
+    ${state.conclusionsRecording?`<div class="audio-result" style="margin-bottom:10px"><span>🎙️</span><div><div class="audio-result-title">Transcribiendo en vivo...</div><div class="audio-result-text" id="conc-live-transcript">${state.conclusionsTranscript||'Escuchando...'}</div></div></div>`:''}
+    ${state.conclusionsAudioBlob&&!state.conclusionsRecording?`<div class="audio-result" style="margin-bottom:10px"><span>🔊</span><div><div class="audio-result-title">Audio de lineamientos grabado ✓</div><div class="audio-result-text">${state.conclusionsTranscript||'Transcripción no disponible'}</div></div></div>`:''}`
 
-    <label class="form-label">Fotos incluidas (${sp.length})</label>
+  html += `<label class="form-label">Fotos incluidas (${sp.length})</label>
     <div class="selected-photos">
       ${sp.map((p,i)=>`<div class="mini-photo" style="position:relative"><img src="${p.imageData}"><button class="mini-remove" data-remove="${p.id}">✕</button><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);color:#fff;font-size:8px;text-align:center;padding:1px">${generatePhotoId(i)}</div></div>`).join('')}
       ${sp.length===0?'<div style="color:var(--text2);font-size:12px;font-style:italic">Selecciona fotos desde la carpeta</div>':''}
