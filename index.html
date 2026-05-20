@@ -428,6 +428,24 @@ let state = {
   promptGenerated: false,
   promptCopied: false,
   claudeResponse: "",
+  // Report extra fields
+  introGuidelines: "",
+  introRecording: false,
+  introRecTime: 0,
+  introAudioBlob: null,
+  introTranscript: "",
+  introMediaRecorder: null,
+  introAudioChunks: [],
+  introSpeechRec: null,
+  testDate: "",
+  testTime: "",
+  testLocation: "",
+  testParticipants: "",
+  testEquipment: "",
+  // Photo editing
+  editingPhotoId: null,
+  editPhotoText: "",
+  editPhotoTranscript: "",
 };
 
 let recInterval = null;
@@ -570,6 +588,10 @@ function startSpeechRecognition(target) {
       state.conclusionsTranscript = finalTranscript + interim;
       const el = document.getElementById("conc-live-transcript");
       if (el) el.textContent = state.conclusionsTranscript || "Escuchando...";
+    } else if (target === "intro") {
+      state.introTranscript = finalTranscript + interim;
+      const el = document.getElementById("intro-live-transcript");
+      if (el) el.textContent = state.introTranscript || "Escuchando...";
     }
   };
   recognition.onerror = (e) => { console.log("Speech error", e.error); };
@@ -577,10 +599,12 @@ function startSpeechRecognition(target) {
     // Save final transcript
     if (target === "capture") state.audioTranscript = finalTranscript;
     else if (target === "conclusions") state.conclusionsTranscript = finalTranscript;
+    else if (target === "intro") state.introTranscript = finalTranscript;
   };
   recognition.start();
   if (target === "capture") state.speechRec = recognition;
-  else state.concSpeechRec = recognition;
+  else if (target === "conclusions") state.concSpeechRec = recognition;
+  else if (target === "intro") state.introSpeechRec = recognition;
 }
 
 // Conclusions audio
@@ -615,6 +639,61 @@ async function startConcAudioRec() {
 }
 
 function stopConcAudioRec() { if(state.conclusionsMediaRecorder && state.conclusionsMediaRecorder.state!=="inactive") state.conclusionsMediaRecorder.stop(); }
+
+// Intro audio
+let introRecInterval = null;
+async function startIntroAudioRec() {
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(audioStream);
+    state.introAudioChunks = [];
+    mr.ondataavailable = (e) => state.introAudioChunks.push(e.data);
+    mr.onstop = () => {
+      const blob = new Blob(state.introAudioChunks,{type:"audio/webm"});
+      audioStream.getTracks().forEach(t=>t.stop());
+      state.introAudioBlob = blob;
+      state.introRecording = false;
+      clearInterval(introRecInterval);
+      if (state.introSpeechRec) { try { state.introSpeechRec.stop(); } catch(e){} state.introSpeechRec = null; }
+      render();
+    };
+    mr.start();
+    state.introMediaRecorder = mr;
+    state.introRecording = true;
+    state.introRecTime = 0;
+    state.introTranscript = "";
+    startSpeechRecognition("intro");
+    introRecInterval = setInterval(()=>{
+      state.introRecTime++;
+      const el = document.getElementById("intro-rec-timer");
+      if(el) el.textContent = "\u23f9 Detener " + fmtTime(state.introRecTime);
+    },1000);
+    render();
+  } catch(e) { alert("No se pudo acceder al micr\u00f3fono"); }
+}
+function stopIntroAudioRec() { if(state.introMediaRecorder && state.introMediaRecorder.state!=="inactive") state.introMediaRecorder.stop(); }
+
+// Photo edit functions
+async function savePhotoEdit() {
+  const p = state.photos.find(x=>x.id===state.editingPhotoId);
+  if(p) {
+    p.text = state.editPhotoText;
+    p.audioTranscript = state.editPhotoTranscript;
+    await dbPut("photos", p);
+  }
+  state.editingPhotoId = null;
+  render();
+}
+async function deletePhotoAudio() {
+  const p = state.photos.find(x=>x.id===state.editingPhotoId);
+  if(p) {
+    p.audioData = null;
+    p.audioTranscript = "";
+    state.editPhotoTranscript = "";
+    await dbPut("photos", p);
+  }
+  render();
+}
 
 // Capture photo
 async function capturePhoto() {
@@ -709,11 +788,25 @@ function buildPrompt() {
   }
   if (!conclusionsText) conclusionsText = "Generar conclusiones basadas en las pruebas realizadas.";
 
+  let introText = state.introGuidelines || "";
+  if (state.introTranscript) {
+    introText += (introText ? "\n\nAudio transcrito: " : "") + state.introTranscript;
+  }
+
+  let testDetails = "";
+  if (state.testDate || state.testTime) testDetails += `Fecha: ${state.testDate || 'No especificada'} ${state.testTime || ''}\n`;
+  if (state.testLocation) testDetails += `Lugar: ${state.testLocation}\n`;
+  if (state.testParticipants) testDetails += `Participantes: ${state.testParticipants}\n`;
+  if (state.testEquipment) testDetails += `Equipos y materiales: ${state.testEquipment}\n`;
+
   const prompt = `Eres un ingeniero de Crystal Lagoons que escribe reportes técnicos de pruebas de I+D.
 Escribe en español técnico profesional.
 
 REPORTE: "${state.reportName}"
 PROYECTO: ${projectName} (${projectCode})
+
+${testDetails ? 'DETALLES DE LA PRUEBA:\n' + testDetails : ''}
+${introText ? 'CONTEXTO / OBJETIVO DE LA PRUEBA:\n' + introText + '\n' : ''}
 
 INFORMACIÓN DE LAS PRUEBAS:
 Cada prueba tiene un identificador de foto (ej: ${generatePhotoId(0)}). La información sobre cada prueba proviene de las notas escritas y los audios transcritos que se detallan abajo. NO necesitas describir las fotos — usa la información de texto y audio como fuente.
@@ -740,14 +833,32 @@ IMPORTANTE: El campo "foto" es solo un placeholder para que la app inserte la im
 // ═══════ Parse Claude Response ═══════
 function parseClaudeResponse(text) {
   try {
-    const clean = text.replace(/```json|```/g, "").trim();
+    // Clean up Claude's response
+    let clean = text.trim();
+    // Remove markdown code fences
+    clean = clean.replace(/```json\s*/gi, "").replace(/```\s*/g, "");
+    // Remove any text before the first { and after the last }
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("No se encontró un JSON válido en la respuesta");
+    }
+    clean = clean.substring(firstBrace, lastBrace + 1);
+    // Replace curly/smart quotes with straight quotes
+    clean = clean.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"');
+    clean = clean.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+    // Replace en-dash and em-dash
+    clean = clean.replace(/[\u2013\u2014]/g, "-");
+    // Fix escaped newlines in values
+    clean = clean.replace(/\n/g, "\\n");
+    // Try to parse
     const parsed = JSON.parse(clean);
     if (!parsed.introduccion || !parsed.pruebas || !parsed.conclusiones) {
-      throw new Error("Faltan campos requeridos en el JSON");
+      throw new Error("Faltan campos requeridos (introduccion, pruebas, conclusiones)");
     }
     return parsed;
   } catch (e) {
-    alert("Error al interpretar la respuesta: " + e.message + "\n\nAsegúrate de copiar SOLO el JSON que Claude generó.");
+    alert("Error al interpretar la respuesta: " + e.message + "\n\nAsegúrate de copiar toda la respuesta de Claude (el JSON completo desde { hasta }).");
     return null;
   }
 }
@@ -1128,6 +1239,31 @@ function renderReportForm() {
     </div>`;
   }
 
+  // ── Introducción guidelines ──
+  html += `<label class="form-label">Introducci\u00f3n / Objetivo de la Prueba</label>
+    <textarea class="form-textarea" id="intro-guidelines" rows="3" placeholder="Describe el contexto y objetivo de las pruebas realizadas...">${state.introGuidelines}</textarea>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <button class="btn-audio ${state.introRecording?'recording':'idle'}" id="btn-intro-audio" style="flex:1">
+        <span id="intro-rec-timer">${state.introRecording?'\u23f9 Detener '+fmtTime(state.introRecTime):'\U0001f3a4 Grabar Audio'}</span>
+      </button>
+      ${state.introAudioBlob&&!state.introRecording?'<button class="btn-delete-audio" id="btn-intro-audio-del">\U0001f5d1</button>':''}
+    </div>
+    ${state.introRecording?'<div class="audio-result" style="margin-bottom:10px"><span>\U0001f399\ufe0f</span><div><div class="audio-result-title">Transcribiendo en vivo...</div><div class="audio-result-text" id="intro-live-transcript">'+(state.introTranscript||'Escuchando...')+'</div></div></div>':''}
+    ${state.introAudioBlob&&!state.introRecording?'<div class="audio-result" style="margin-bottom:10px"><span>\U0001f50a</span><div><div class="audio-result-title">Audio de introducci\u00f3n grabado \u2713</div><div class="audio-result-text">'+(state.introTranscript||'Sin transcripci\u00f3n')+'</div></div></div>':''}`;
+
+  // ── Test details ──
+  html += `<label class="form-label">Fecha y Hora de la Prueba</label>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input class="form-input" id="test-date" type="date" value="${state.testDate}" style="flex:1;margin-bottom:0">
+      <input class="form-input" id="test-time" type="time" value="${state.testTime}" style="flex:1;margin-bottom:0">
+    </div>
+    <label class="form-label">Lugar de la Prueba</label>
+    <input class="form-input" id="test-location" placeholder="Ej: Laguna Norte, Sector B3" value="${state.testLocation}">
+    <label class="form-label">Participantes</label>
+    <input class="form-input" id="test-participants" placeholder="Ej: R. Riquelme, J. De la Cerda" value="${state.testParticipants}">
+    <label class="form-label">Equipos y Materiales <span style="color:var(--text2);font-weight:400">(opcional)</span></label>
+    <textarea class="form-textarea" id="test-equipment" rows="2" placeholder="Ej: Turbid\u00edmetro port\u00e1til, pH-metro, c\u00e1mara submarina..." style="margin-bottom:14px">${state.testEquipment}</textarea>`;
+
   html += `<label class="form-label">Lineamientos para Conclusiones</label>
     <textarea class="form-textarea" id="conclusions-text" rows="4" placeholder="Describe los principales lineamientos y puntos clave que deben incluirse en las conclusiones...">${state.conclusions}</textarea>
     <div style="display:flex;gap:8px;margin-bottom:6px">
@@ -1235,6 +1371,29 @@ function attachEvents() {
     el.onclick = (e) => { e.stopPropagation(); toggleSelect(Number(el.dataset.toggle)); };
   });
 
+  // Photo editing
+  document.querySelectorAll("[data-edit-photo]").forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const id = Number(el.dataset.editPhoto);
+      const p = state.photos.find(x=>x.id===id);
+      if(p) setState({editingPhotoId:id, editPhotoText:p.text||"", editPhotoTranscript:p.audioTranscript||""});
+    };
+  });
+  document.querySelectorAll("[data-delete-audio]").forEach(el=>{
+    el.onclick = (e) => { e.stopPropagation(); deletePhotoAudio(); };
+  });
+  const se = document.getElementById("btn-save-edit");
+  if(se) se.onclick = () => {
+    const t = document.getElementById("edit-photo-text");
+    const tr = document.getElementById("edit-photo-transcript");
+    if(t) state.editPhotoText = t.value;
+    if(tr) state.editPhotoTranscript = tr.value;
+    savePhotoEdit();
+  };
+  const ce = document.getElementById("btn-cancel-edit");
+  if(ce) ce.onclick = () => setState({editingPhotoId:null});
+
   // Camera
   const ct = document.getElementById("capture-text");
   if(ct) ct.oninput = (e)=>{state.captureText=e.target.value;};
@@ -1270,7 +1429,27 @@ function attachEvents() {
   const ca = document.getElementById("btn-conc-audio");
   if(ca) ca.onclick = ()=>{ state.conclusionsRecording ? stopConcAudioRec() : startConcAudioRec(); };
   const cad = document.getElementById("btn-conc-audio-del");
-  if(cad) cad.onclick = ()=>setState({conclusionsAudioBlob:null});
+  if(cad) cad.onclick = ()=>setState({conclusionsAudioBlob:null, conclusionsTranscript:""});
+
+  // Intro audio
+  const ig = document.getElementById("intro-guidelines");
+  if(ig) ig.oninput = (e)=>{state.introGuidelines=e.target.value;};
+  const ia = document.getElementById("btn-intro-audio");
+  if(ia) ia.onclick = ()=>{ state.introRecording ? stopIntroAudioRec() : startIntroAudioRec(); };
+  const iad = document.getElementById("btn-intro-audio-del");
+  if(iad) iad.onclick = ()=>setState({introAudioBlob:null, introTranscript:""});
+
+  // Test details
+  const td = document.getElementById("test-date");
+  if(td) td.oninput = (e)=>{state.testDate=e.target.value;};
+  const tt = document.getElementById("test-time");
+  if(tt) tt.oninput = (e)=>{state.testTime=e.target.value;};
+  const tl = document.getElementById("test-location");
+  if(tl) tl.oninput = (e)=>{state.testLocation=e.target.value;};
+  const tp = document.getElementById("test-participants");
+  if(tp) tp.oninput = (e)=>{state.testParticipants=e.target.value;};
+  const te = document.getElementById("test-equipment");
+  if(te) te.oninput = (e)=>{state.testEquipment=e.target.value;};
   document.querySelectorAll("[data-remove]").forEach(el=>{
     el.onclick = (e)=>{ e.stopPropagation(); removeFromSelection(Number(el.dataset.remove)); };
   });
