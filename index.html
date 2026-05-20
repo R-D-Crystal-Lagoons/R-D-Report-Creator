@@ -446,6 +446,12 @@ let state = {
   editingPhotoId: null,
   editPhotoText: "",
   editPhotoTranscript: "",
+  editRecordingPhotoId: null,
+  editRecTime: 0,
+  editAudioTranscript: "",
+  editMediaRecorder: null,
+  editAudioChunks: [],
+  editSpeechRec: null,
 };
 
 let recInterval = null;
@@ -592,6 +598,10 @@ function startSpeechRecognition(target) {
       state.introTranscript = finalTranscript + interim;
       const el = document.getElementById("intro-live-transcript");
       if (el) el.textContent = state.introTranscript || "Escuchando...";
+    } else if (target === "edit") {
+      state.editAudioTranscript = finalTranscript + interim;
+      const el = document.getElementById("edit-live-transcript");
+      if (el) el.textContent = state.editAudioTranscript || "Escuchando...";
     }
   };
   recognition.onerror = (e) => { console.log("Speech error", e.error); };
@@ -600,11 +610,13 @@ function startSpeechRecognition(target) {
     if (target === "capture") state.audioTranscript = finalTranscript;
     else if (target === "conclusions") state.conclusionsTranscript = finalTranscript;
     else if (target === "intro") state.introTranscript = finalTranscript;
+    else if (target === "edit") state.editAudioTranscript = finalTranscript;
   };
   recognition.start();
   if (target === "capture") state.speechRec = recognition;
   else if (target === "conclusions") state.concSpeechRec = recognition;
   else if (target === "intro") state.introSpeechRec = recognition;
+  else if (target === "edit") state.editSpeechRec = recognition;
 }
 
 // Conclusions audio
@@ -674,6 +686,49 @@ async function startIntroAudioRec() {
 function stopIntroAudioRec() { if(state.introMediaRecorder && state.introMediaRecorder.state!=="inactive") state.introMediaRecorder.stop(); }
 
 // Photo edit functions
+let editRecInterval = null;
+async function startEditAudioRec(photoId) {
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(audioStream);
+    state.editAudioChunks = [];
+    mr.ondataavailable = (e) => state.editAudioChunks.push(e.data);
+    mr.onstop = async () => {
+      const blob = new Blob(state.editAudioChunks,{type:"audio/webm"});
+      audioStream.getTracks().forEach(t=>t.stop());
+      clearInterval(editRecInterval);
+      if (state.editSpeechRec) { try { state.editSpeechRec.stop(); } catch(e){} state.editSpeechRec = null; }
+      // Save audio to photo
+      const audioB64 = await blobToBase64(blob);
+      const p = state.photos.find(x=>x.id===photoId);
+      if(p) {
+        p.audioData = audioB64;
+        p.audioTranscript = state.editAudioTranscript || "";
+        state.editPhotoTranscript = p.audioTranscript;
+        await dbPut("photos", p);
+      }
+      state.editRecordingPhotoId = null;
+      state.editRecTime = 0;
+      render();
+    };
+    mr.start();
+    state.editMediaRecorder = mr;
+    state.editRecordingPhotoId = photoId;
+    state.editRecTime = 0;
+    state.editAudioTranscript = "";
+    startSpeechRecognition("edit");
+    editRecInterval = setInterval(()=>{
+      state.editRecTime++;
+      const el = document.getElementById("edit-rec-timer");
+      if(el) el.textContent = fmtTime(state.editRecTime);
+    },1000);
+    render();
+  } catch(e) { alert("No se pudo acceder al micrófono"); }
+}
+function stopEditAudioRec() {
+  if(state.editMediaRecorder && state.editMediaRecorder.state!=="inactive") state.editMediaRecorder.stop();
+}
+
 async function savePhotoEdit() {
   const p = state.photos.find(x=>x.id===state.editingPhotoId);
   if(p) {
@@ -682,6 +737,7 @@ async function savePhotoEdit() {
     await dbPut("photos", p);
   }
   state.editingPhotoId = null;
+  state.editRecordingPhotoId = null;
   render();
 }
 async function deletePhotoAudio() {
@@ -1168,6 +1224,7 @@ function renderFolder() {
   } else {
     fp.forEach(p => {
       const isEditing = state.editingPhotoId === p.id;
+      const isRecordingThis = state.editRecordingPhotoId === p.id;
       html += `<div class="photo-card ${p.selected?'selected':''}">
         <div class="photo-img-wrap">
           <img src="${p.imageData}" alt="">
@@ -1185,8 +1242,19 @@ function renderFolder() {
             ${p.audioData ? `
               <label style="font-size:11px;font-weight:600;color:var(--text);display:block">Transcripción de audio:</label>
               <textarea class="form-textarea" id="edit-photo-transcript" rows="2" style="font-size:11px;color:var(--turquoise-dark);margin-bottom:4px">${state.editPhotoTranscript}</textarea>
-              <button class="btn-sm" style="background:var(--danger-light);color:var(--danger);margin-bottom:4px;width:100%" data-delete-audio="${p.id}">🗑 Borrar audio (para grabar de nuevo)</button>
-            ` : ''}
+              <button class="btn-sm" style="background:var(--danger-light);color:var(--danger);margin-bottom:4px;width:100%" data-delete-audio="${p.id}">🗑 Borrar audio</button>
+            ` : `
+              ${isRecordingThis ? `
+                <div class="btn-audio recording" style="margin:6px 0;font-size:12px;padding:8px 0;display:flex;align-items:center;justify-content:center;gap:6px">
+                  <div class="rec-dot" style="width:7px;height:7px;border-radius:50%;background:var(--danger);animation:pulse 1s infinite"></div>
+                  <span id="edit-rec-timer">${fmtTime(state.editRecTime)}</span>
+                </div>
+                <div class="audio-result" style="margin-bottom:6px"><span>🎙️</span><div><div class="audio-result-text" id="edit-live-transcript" style="font-size:11px">${state.editAudioTranscript||'Escuchando...'}</div></div></div>
+                <button class="btn-sm" style="background:var(--danger);color:#fff;width:100%;margin-bottom:4px" data-stop-edit-rec="${p.id}">⏹ Detener grabación</button>
+              ` : `
+                <button class="btn-sm" style="background:var(--turquoise-light);color:var(--turquoise-dark);width:100%;margin:6px 0" data-start-edit-rec="${p.id}">🎤 Grabar audio</button>
+              `}
+            `}
             <div style="display:flex;gap:6px;margin-top:4px">
               <button class="btn-sm" style="background:var(--turquoise);color:#fff;flex:1" id="btn-save-edit">✓ Guardar</button>
               <button class="btn-sm" style="background:#E8ECF0;color:var(--text2);flex:1" id="btn-cancel-edit">Cancelar</button>
@@ -1408,7 +1476,15 @@ function attachEvents() {
     savePhotoEdit();
   };
   const ce = document.getElementById("btn-cancel-edit");
-  if(ce) ce.onclick = () => setState({editingPhotoId:null});
+  if(ce) ce.onclick = () => setState({editingPhotoId:null, editRecordingPhotoId:null});
+
+  // Edit audio recording
+  document.querySelectorAll("[data-start-edit-rec]").forEach(el=>{
+    el.onclick = (e) => { e.stopPropagation(); startEditAudioRec(Number(el.dataset.startEditRec)); };
+  });
+  document.querySelectorAll("[data-stop-edit-rec]").forEach(el=>{
+    el.onclick = (e) => { e.stopPropagation(); stopEditAudioRec(); };
+  });
 
   // Camera
   const ct = document.getElementById("capture-text");
