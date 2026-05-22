@@ -678,7 +678,7 @@ async function startIntroAudioRec() {
     introRecInterval = setInterval(()=>{
       state.introRecTime++;
       const el = document.getElementById("intro-rec-timer");
-      if(el) el.textContent = "\u23f9 Detener " + fmtTime(state.introRecTime);
+      if(el) el.textContent = "⏹ Detener " + fmtTime(state.introRecTime);
     },1000);
     render();
   } catch(e) { alert("No se pudo acceder al micr\u00f3fono"); }
@@ -921,9 +921,11 @@ function parseClaudeResponse(text) {
 
 // ═══════ DOCX Generation ═══════
 async function generateDocx(content, photos, reportName, projectCode) {
+  const _docx = window.docx;
+  if (!_docx) { alert("Error: La librería docx no se cargó. Verifica tu conexión a internet y recarga la página."); return false; }
   const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer,
           AlignmentType, HeadingLevel, BorderStyle, PageBreak, TableOfContents,
-          LevelFormat, PageNumber } = docx;
+          LevelFormat, PageNumber } = _docx;
 
   // Load CL logo for cover
   const logoResp = await fetch(CL_LOGO);
@@ -1109,7 +1111,18 @@ async function generateDocx(content, photos, reportName, projectCode) {
   });
 
   const buffer = await Packer.toBlob(doc);
-  saveAs(buffer, `${reportName.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ ]/g, "_")}.docx`);
+  const fileName = `${reportName.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ ]/g, "_")}.docx`;
+  if (window.saveAs) {
+    window.saveAs(buffer, fileName);
+  } else {
+    // Fallback download
+    const url = URL.createObjectURL(buffer);
+    const a = document.createElement("a");
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
   return true;
 }
 
@@ -1328,12 +1341,12 @@ function renderReportForm() {
     <textarea class="form-textarea" id="intro-guidelines" rows="3" placeholder="Describe el contexto y objetivo de las pruebas realizadas...">${state.introGuidelines}</textarea>
     <div style="display:flex;gap:8px;margin-bottom:6px">
       <button class="btn-audio ${state.introRecording?'recording':'idle'}" id="btn-intro-audio" style="flex:1">
-        <span id="intro-rec-timer">${state.introRecording?'\u23f9 Detener '+fmtTime(state.introRecTime):'\U0001f3a4 Grabar Audio'}</span>
+        <span id="intro-rec-timer">${state.introRecording?'⏹ Detener '+fmtTime(state.introRecTime):'🎤 Grabar Audio'}</span>
       </button>
-      ${state.introAudioBlob&&!state.introRecording?'<button class="btn-delete-audio" id="btn-intro-audio-del">\U0001f5d1</button>':''}
+      ${state.introAudioBlob&&!state.introRecording?'<button class="btn-delete-audio" id="btn-intro-audio-del">🗑</button>':''}
     </div>
-    ${state.introRecording?'<div class="audio-result" style="margin-bottom:10px"><span>\U0001f399\ufe0f</span><div><div class="audio-result-title">Transcribiendo en vivo...</div><div class="audio-result-text" id="intro-live-transcript">'+(state.introTranscript||'Escuchando...')+'</div></div></div>':''}
-    ${state.introAudioBlob&&!state.introRecording?'<div class="audio-result" style="margin-bottom:10px"><span>\U0001f50a</span><div><div class="audio-result-title">Audio de introducci\u00f3n grabado \u2713</div><div class="audio-result-text">'+(state.introTranscript||'Sin transcripci\u00f3n')+'</div></div></div>':''}`;
+    ${state.introRecording?'<div class="audio-result" style="margin-bottom:10px"><span>🎙️</span><div><div class="audio-result-title">Transcribiendo en vivo...</div><div class="audio-result-text" id="intro-live-transcript">'+(state.introTranscript||'Escuchando...')+'</div></div></div>':''}
+    ${state.introAudioBlob&&!state.introRecording?`<div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--text);display:block">Transcripción de audio (editable):</label><textarea class="form-textarea" id="intro-transcript-edit" rows="2" style="font-size:11px;color:var(--turquoise-dark)">${state.introTranscript||''}</textarea></div>`:''}`;
 
   // ── Test details ──
   html += `<label class="form-label">Fecha y Hora de la Prueba</label>
@@ -1344,7 +1357,23 @@ function renderReportForm() {
     <label class="form-label">Lugar de la Prueba</label>
     <input class="form-input" id="test-location" placeholder="Ej: Laguna Norte, Sector B3" value="${state.testLocation}">
     <label class="form-label">Participantes</label>
-    <input class="form-input" id="test-participants" placeholder="Ej: R. Riquelme, J. De la Cerda" value="${state.testParticipants}">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px" id="participants-chips">
+      ${(state.testParticipants||'').split(',').filter(p=>p.trim()).map(p=>'<span style="background:var(--turquoise-light);color:var(--turquoise-dark);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px">'+p.trim()+'<button style="background:none;border:none;color:var(--turquoise-dark);font-size:13px;cursor:pointer;padding:0" data-remove-participant="'+p.trim()+'">×</button></span>').join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <select class="form-input" id="participant-select" style="flex:1;margin-bottom:0">
+        <option value="">Seleccionar...</option>
+        <option value="Gabriel Aulestia">Gabriel Aulestia</option>
+        <option value="Juan Luzoro">Juan Luzoro</option>
+        <option value="Rodrigo Riquelme">Rodrigo Riquelme</option>
+        <option value="Roberto Soto">Roberto Soto</option>
+        <option value="Vicente Valdes">Vicente Valdes</option>
+        <option value="Eduardo Valdivia">Eduardo Valdivia</option>
+      </select>
+      <button class="btn-sm" style="background:var(--turquoise);color:#fff;flex-shrink:0" id="btn-add-participant">+</button>
+    </div>
+    <input class="form-input" id="custom-participant" placeholder="O escribir otro nombre y presionar +" style="margin-bottom:14px">
+    <button class="btn-sm" style="background:var(--turquoise-light);color:var(--turquoise-dark);margin-top:-10px;margin-bottom:14px;width:100%" id="btn-add-custom-participant">+ Agregar otro participante</button>
     <label class="form-label">Equipos y Materiales <span style="color:var(--text2);font-weight:400">(opcional)</span></label>
     <textarea class="form-textarea" id="test-equipment" rows="2" placeholder="Ej: Turbid\u00edmetro port\u00e1til, pH-metro, c\u00e1mara submarina..." style="margin-bottom:14px">${state.testEquipment}</textarea>`;
 
@@ -1357,7 +1386,7 @@ function renderReportForm() {
       ${state.conclusionsAudioBlob&&!state.conclusionsRecording?'<button class="btn-delete-audio" id="btn-conc-audio-del">🗑</button>':''}
     </div>
     ${state.conclusionsRecording?`<div class="audio-result" style="margin-bottom:10px"><span>🎙️</span><div><div class="audio-result-title">Transcribiendo en vivo...</div><div class="audio-result-text" id="conc-live-transcript">${state.conclusionsTranscript||'Escuchando...'}</div></div></div>`:''}
-    ${state.conclusionsAudioBlob&&!state.conclusionsRecording?`<div class="audio-result" style="margin-bottom:10px"><span>🔊</span><div><div class="audio-result-title">Audio de lineamientos grabado ✓</div><div class="audio-result-text">${state.conclusionsTranscript||'Transcripción no disponible'}</div></div></div>`:''}`
+    ${state.conclusionsAudioBlob&&!state.conclusionsRecording?`<div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--text);display:block">Transcripción de audio (editable):</label><textarea class="form-textarea" id="conc-transcript-edit" rows="2" style="font-size:11px;color:var(--turquoise-dark)">${state.conclusionsTranscript||''}</textarea></div>`:''}`
 
   html += `<label class="form-label">Fotos incluidas (${sp.length})</label>
     <div class="selected-photos">
@@ -1538,10 +1567,42 @@ function attachEvents() {
   if(tt) tt.oninput = (e)=>{state.testTime=e.target.value;};
   const tl = document.getElementById("test-location");
   if(tl) tl.oninput = (e)=>{state.testLocation=e.target.value;};
-  const tp = document.getElementById("test-participants");
-  if(tp) tp.oninput = (e)=>{state.testParticipants=e.target.value;};
   const te = document.getElementById("test-equipment");
   if(te) te.oninput = (e)=>{state.testEquipment=e.target.value;};
+
+  // Participants
+  const addPart = document.getElementById("btn-add-participant");
+  if(addPart) addPart.onclick = () => {
+    const sel = document.getElementById("participant-select");
+    if(sel && sel.value) {
+      const parts = (state.testParticipants||'').split(',').map(s=>s.trim()).filter(s=>s);
+      if(!parts.includes(sel.value)) { parts.push(sel.value); state.testParticipants=parts.join(', '); render(); }
+      sel.value = '';
+    }
+  };
+  const addCustomPart = document.getElementById("btn-add-custom-participant");
+  if(addCustomPart) addCustomPart.onclick = () => {
+    const inp = document.getElementById("custom-participant");
+    if(inp && inp.value.trim()) {
+      const parts = (state.testParticipants||'').split(',').map(s=>s.trim()).filter(s=>s);
+      if(!parts.includes(inp.value.trim())) { parts.push(inp.value.trim()); state.testParticipants=parts.join(', '); }
+      inp.value=''; render();
+    }
+  };
+  document.querySelectorAll("[data-remove-participant]").forEach(el=>{
+    el.onclick = () => {
+      const name = el.dataset.removeParticipant;
+      const parts = (state.testParticipants||'').split(',').map(s=>s.trim()).filter(s=>s&&s!==name);
+      state.testParticipants = parts.join(', ');
+      render();
+    };
+  });
+
+  // Editable transcripts
+  const ite = document.getElementById("intro-transcript-edit");
+  if(ite) ite.oninput = (e)=>{state.introTranscript=e.target.value;};
+  const cte = document.getElementById("conc-transcript-edit");
+  if(cte) cte.oninput = (e)=>{state.conclusionsTranscript=e.target.value;};
   document.querySelectorAll("[data-remove]").forEach(el=>{
     el.onclick = (e)=>{ e.stopPropagation(); removeFromSelection(Number(el.dataset.remove)); };
   });
