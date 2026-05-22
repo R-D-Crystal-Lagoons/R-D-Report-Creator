@@ -9,8 +9,33 @@
 <title>R&D Reports</title>
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUiZEIFJlcG9ydHMiLCJzaG9ydF9uYW1lIjoiUiZEIFJlcG9ydHMiLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI0Y1RjdGQSIsInRoZW1lX2NvbG9yIjoiIzAwQTBCMCJ9">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script>
+// Load docx library with fallbacks
+function loadScript(urls, callback) {
+  let i = 0;
+  function tryNext() {
+    if (i >= urls.length) { callback(false); return; }
+    const s = document.createElement('script');
+    s.src = urls[i]; i++;
+    s.onload = () => callback(true);
+    s.onerror = tryNext;
+    document.head.appendChild(s);
+  }
+  tryNext();
+}
+let libsLoaded = 0;
+function checkLibs() { libsLoaded++; if(libsLoaded>=2) console.log("All libs loaded"); }
+loadScript([
+  "https://unpkg.com/docx@8.5.0/build/index.js",
+  "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"
+], (ok)=>{ if(ok) checkLibs(); else console.error("docx lib failed"); });
+loadScript([
+  "https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js",
+  "https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
+], (ok)=>{ if(ok) checkLibs(); else console.error("FileSaver lib failed"); });
+</script>
 <style>
 :root {
   --turquoise: #00A0B0;
@@ -922,7 +947,10 @@ function parseClaudeResponse(text) {
 // ═══════ DOCX Generation ═══════
 async function generateDocx(content, photos, reportName, projectCode) {
   const _docx = window.docx;
-  if (!_docx) { alert("Error: La librería docx no se cargó. Verifica tu conexión a internet y recarga la página."); return false; }
+  if (!_docx) { 
+    alert("Error: La librería de documentos no se cargó. Esto puede pasar en Safari la primera vez.\n\nSolución: Recarga la página e intenta de nuevo."); 
+    return false; 
+  }
   const { Document, Packer, Paragraph, TextRun, ImageRun, Header, Footer,
           AlignmentType, HeadingLevel, BorderStyle, PageBreak, TableOfContents,
           LevelFormat, PageNumber } = _docx;
@@ -1170,7 +1198,7 @@ function renderHeader() {
       <button class="header-back ${showBack?'visible':''}" id="btn-back">←</button>
       <img src="${CL_LOGO}" class="header-logo" alt="CL">
     </div>
-    <span class="header-title">R&D Reports</span>
+    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9</span></span>
   </div>`;
 }
 
