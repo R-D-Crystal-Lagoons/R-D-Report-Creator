@@ -441,6 +441,16 @@ let state = {
   testParticipants: "",
   testEquipment: "",
   additionalInfo: "",
+  // Audio-only mode
+  audioOnlyMode: false,
+  audioOnlyRecording: false,
+  audioOnlyRecTime: 0,
+  audioOnlyBlob: null,
+  audioOnlyTranscript: "",
+  audioOnlyText: "",
+  audioOnlyMediaRecorder: null,
+  audioOnlyAudioChunks: [],
+  audioOnlySpeechRec: null,
   // Photo editing
   editingPhotoId: null,
   editPhotoText: "",
@@ -601,6 +611,10 @@ function startSpeechRecognition(target) {
       state.editAudioTranscript = finalTranscript + interim;
       const el = document.getElementById("edit-live-transcript");
       if (el) el.textContent = state.editAudioTranscript || "Escuchando...";
+    } else if (target === "audioOnly") {
+      state.audioOnlyTranscript = finalTranscript + interim;
+      const el = document.getElementById("audio-only-live-transcript");
+      if (el) el.textContent = state.audioOnlyTranscript || "Escuchando...";
     }
   };
   recognition.onerror = (e) => { console.log("Speech error", e.error); };
@@ -610,12 +624,14 @@ function startSpeechRecognition(target) {
     else if (target === "conclusions") state.conclusionsTranscript = finalTranscript;
     else if (target === "intro") state.introTranscript = finalTranscript;
     else if (target === "edit") state.editAudioTranscript = finalTranscript;
+    else if (target === "audioOnly") state.audioOnlyTranscript = finalTranscript;
   };
   recognition.start();
   if (target === "capture") state.speechRec = recognition;
   else if (target === "conclusions") state.concSpeechRec = recognition;
   else if (target === "intro") state.introSpeechRec = recognition;
   else if (target === "edit") state.editSpeechRec = recognition;
+  else if (target === "audioOnly") state.audioOnlySpeechRec = recognition;
 }
 
 // Conclusions audio
@@ -683,6 +699,68 @@ async function startIntroAudioRec() {
   } catch(e) { alert("No se pudo acceder al micr\u00f3fono"); }
 }
 function stopIntroAudioRec() { if(state.introMediaRecorder && state.introMediaRecorder.state!=="inactive") state.introMediaRecorder.stop(); }
+
+// Audio-only recording for folder
+let audioOnlyRecInterval = null;
+async function startAudioOnlyRec() {
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mr = new MediaRecorder(audioStream);
+    state.audioOnlyAudioChunks = [];
+    mr.ondataavailable = (e) => state.audioOnlyAudioChunks.push(e.data);
+    mr.onstop = () => {
+      const blob = new Blob(state.audioOnlyAudioChunks,{type:"audio/webm"});
+      audioStream.getTracks().forEach(t=>t.stop());
+      state.audioOnlyBlob = blob;
+      state.audioOnlyRecording = false;
+      clearInterval(audioOnlyRecInterval);
+      if (state.audioOnlySpeechRec) { try { state.audioOnlySpeechRec.stop(); } catch(e){} state.audioOnlySpeechRec = null; }
+      render();
+    };
+    mr.start();
+    state.audioOnlyMediaRecorder = mr;
+    state.audioOnlyRecording = true;
+    state.audioOnlyRecTime = 0;
+    state.audioOnlyTranscript = "";
+    startSpeechRecognition("audioOnly");
+    audioOnlyRecInterval = setInterval(()=>{
+      state.audioOnlyRecTime++;
+      const el = document.getElementById("audio-only-timer");
+      if(el) el.textContent = fmtTime(state.audioOnlyRecTime);
+    },1000);
+    render();
+  } catch(e) { alert("No se pudo acceder al micrófono"); }
+}
+function stopAudioOnlyRec() { if(state.audioOnlyMediaRecorder && state.audioOnlyMediaRecorder.state!=="inactive") state.audioOnlyMediaRecorder.stop(); }
+
+async function saveAudioOnly() {
+  let audioB64 = null;
+  if(state.audioOnlyBlob) audioB64 = await blobToBase64(state.audioOnlyBlob);
+  // Read latest values from DOM
+  const textEl = document.getElementById("audio-only-text");
+  const transcriptEl = document.getElementById("audio-only-transcript-edit");
+  const text = textEl ? textEl.value : (state.audioOnlyText || "");
+  const transcript = transcriptEl ? transcriptEl.value : (state.audioOnlyTranscript || "");
+  
+  const entry = {
+    folder: state.activeFolder,
+    imageData: null,
+    text: text,
+    audioData: audioB64,
+    audioTranscript: transcript,
+    timestamp: Date.now(),
+    selected: false,
+    isAudioOnly: true,
+  };
+  const id = await dbAdd("photos", entry);
+  entry.id = id;
+  state.photos.push(entry);
+  state.audioOnlyMode = false;
+  state.audioOnlyBlob = null;
+  state.audioOnlyTranscript = "";
+  state.audioOnlyText = "";
+  render();
+}
 
 // Photo edit functions
 let editRecInterval = null;
@@ -830,6 +908,12 @@ function buildPrompt() {
 
   let photoList = photos.map((p, i) => {
     const id = generatePhotoId(i);
+    if (p.isAudioOnly) {
+      let desc = `${id} [SOLO AUDIO — NO INSERTAR IMAGEN] — Fecha: ${fmtDate(p.timestamp)}`;
+      if (p.text) desc += `\n   Nota escrita: ${p.text}`;
+      if (p.audioTranscript) desc += `\n   Audio transcrito: ${p.audioTranscript}`;
+      return desc;
+    }
     let desc = `${id} — Fecha: ${fmtDate(p.timestamp)}`;
     if (p.text) desc += `\n   Nota escrita: ${p.text}`;
     if (p.audioTranscript) desc += `\n   Audio transcrito: ${p.audioTranscript}`;
@@ -1039,6 +1123,7 @@ async function generateDocx(content, photos, reportName, projectCode) {
   const photoIdMap = {};
 
   for (let i = 0; i < photos.length; i++) {
+    if (photos[i].isAudioOnly || !photos[i].imageData) continue;
     const fotoId = generatePhotoId(i);
     const b64 = imgToBase64Data(photos[i].imageData);
     const bytes = base64ToUint8(b64);
@@ -1209,7 +1294,7 @@ function renderHeader() {
       <button class="header-back ${showBack?'visible':''}" id="btn-back">←</button>
       <img src="${CL_LOGO}" class="header-logo" alt="CL">
     </div>
-    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9.2</span></span>
+    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9.3</span></span>
   </div>`;
 }
 
@@ -1267,9 +1352,38 @@ function renderFolder() {
     </div>
   </div>
   <div class="action-row">
-    <button class="btn-primary" id="btn-open-camera" style="flex:1;padding:10px 0;font-size:13px">📷 Capturar</button>
-    <button class="btn-secondary" id="btn-gallery" style="flex:1;padding:10px 0;font-size:13px">🖼️ Galería</button>
+    <button class="btn-primary" id="btn-open-camera" style="flex:1;padding:10px 0;font-size:12px">📷 Capturar</button>
+    <button class="btn-secondary" id="btn-gallery" style="flex:1;padding:10px 0;font-size:12px">🖼️ Galería</button>
+    <button class="btn-secondary" id="btn-audio-only" style="flex:1;padding:10px 0;font-size:12px;border-color:var(--turquoise)">🎤 Audio</button>
   </div>`;
+
+  // Audio-only recording mode
+  if (state.audioOnlyMode) {
+    html += `<div style="background:var(--card);border-radius:var(--radius);padding:14px;border:2px solid var(--turquoise);margin-bottom:12px;box-shadow:0 2px 12px var(--turquoise-glow)">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">🎤 Grabar Nota de Audio</div>
+      <textarea class="form-textarea" id="audio-only-text" rows="2" placeholder="Agrega una nota de texto (opcional)..." style="margin-bottom:8px;font-size:12px">${state.audioOnlyText||''}</textarea>
+      ${state.audioOnlyRecording ? `
+        <div class="btn-audio recording" style="margin-bottom:8px;font-size:12px;padding:8px 0;display:flex;align-items:center;justify-content:center;gap:6px">
+          <div class="rec-dot" style="width:7px;height:7px;border-radius:50%;background:var(--danger);animation:pulse 1s infinite"></div>
+          <span id="audio-only-timer">${fmtTime(state.audioOnlyRecTime)}</span>
+        </div>
+        <div class="audio-result" style="margin-bottom:8px"><span>🎙️</span><div><div class="audio-result-text" id="audio-only-live-transcript" style="font-size:11px">${state.audioOnlyTranscript||'Escuchando...'}</div></div></div>
+        <button class="btn-sm" style="background:var(--danger);color:#fff;width:100%;padding:10px 0" id="btn-stop-audio-only">⏹ Detener grabación</button>
+      ` : `
+        ${state.audioOnlyBlob ? `
+          <div class="audio-result" style="margin-bottom:8px"><span>🔊</span><div><div class="audio-result-title">Audio grabado ✓</div></div></div>
+          <textarea class="form-textarea" id="audio-only-transcript-edit" rows="2" style="font-size:11px;color:var(--turquoise-dark);margin-bottom:8px" placeholder="Transcripción (editable)...">${state.audioOnlyTranscript||''}</textarea>
+          <div style="display:flex;gap:6px">
+            <button class="btn-sm" style="background:var(--turquoise);color:#fff;flex:1;padding:8px 0" id="btn-save-audio-only">💾 Guardar</button>
+            <button class="btn-sm" style="background:var(--danger-light);color:var(--danger);flex-shrink:0;padding:8px 12px" id="btn-delete-audio-only">🗑</button>
+          </div>
+        ` : `
+          <button class="btn-audio idle" id="btn-start-audio-only" style="margin-bottom:8px">🎤 Iniciar grabación</button>
+        `}
+        <button class="btn-sm" style="background:#E8ECF0;color:var(--text2);width:100%;margin-top:6px;padding:8px 0" id="btn-cancel-audio-only">Cancelar</button>
+      `}
+    </div>`;
+  }
 
   if(fp.length === 0) {
     html += `<div class="empty"><div class="empty-icon">📸</div><p style="font-weight:500;font-size:14px">Sin fotos aún</p><p style="font-size:12px">Toma la primera foto de esta carpeta</p></div>`;
@@ -1277,6 +1391,36 @@ function renderFolder() {
     fp.forEach(p => {
       const isEditing = state.editingPhotoId === p.id;
       const isRecordingThis = state.editRecordingPhotoId === p.id;
+      if (p.isAudioOnly) {
+        // Audio-only card
+        html += `<div class="photo-card ${p.selected?'selected':''}">
+          <div style="padding:14px;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--turquoise-light),#f0fafb)">
+            <div style="width:48px;height:48px;border-radius:12px;background:var(--turquoise);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎤</div>
+            <div style="flex:1;min-width:0">
+              <div class="photo-date">📅 ${fmtDate(p.timestamp)}</div>
+              <div style="font-size:12px;font-weight:600;color:var(--turquoise-dark)">Nota de Audio</div>
+            </div>
+            <button class="photo-select" style="position:relative;top:0;right:0" data-toggle="${p.id}">${p.selected?'✓':''}</button>
+          </div>
+          <div class="photo-meta">
+            ${isEditing ? `
+              <label style="font-size:11px;font-weight:600;color:var(--text);margin-top:4px;display:block">Texto:</label>
+              <textarea class="form-textarea" id="edit-photo-text" rows="2" style="font-size:12px;margin-bottom:4px">${state.editPhotoText}</textarea>
+              <label style="font-size:11px;font-weight:600;color:var(--text);display:block">Transcripción:</label>
+              <textarea class="form-textarea" id="edit-photo-transcript" rows="2" style="font-size:11px;color:var(--turquoise-dark);margin-bottom:4px">${state.editPhotoTranscript}</textarea>
+              <div style="display:flex;gap:6px;margin-top:4px">
+                <button class="btn-sm" style="background:var(--turquoise);color:#fff;flex:1" id="btn-save-edit">✓ Guardar</button>
+                <button class="btn-sm" style="background:#E8ECF0;color:var(--text2);flex:1" id="btn-cancel-edit">Cancelar</button>
+              </div>
+            ` : `
+              ${p.text?'<div class="photo-text">'+p.text+'</div>':''}
+              ${p.audioTranscript?'<div class="photo-transcript">🔊 '+p.audioTranscript+'</div>':''}
+              <button class="btn-sm" style="background:var(--turquoise-light);color:var(--turquoise-dark);margin-top:6px" data-edit-photo="${p.id}">✏️ Editar</button>
+            `}
+          </div>
+        </div>`;
+        return;
+      }
       html += `<div class="photo-card ${p.selected?'selected':''}">
         <div class="photo-img-wrap">
           <img src="${p.imageData}" alt="">
@@ -1517,8 +1661,24 @@ function attachEvents() {
   if(oc) oc.onclick = openCamera;
   const gl = document.getElementById("btn-gallery");
   if(gl) gl.onclick = importFromGallery;
+  const ao = document.getElementById("btn-audio-only");
+  if(ao) ao.onclick = () => setState({audioOnlyMode:true, audioOnlyBlob:null, audioOnlyTranscript:"", audioOnlyText:""});
   const or = document.getElementById("btn-open-report");
   if(or) or.onclick = openReport;
+
+  // Audio-only controls
+  const sao = document.getElementById("btn-start-audio-only");
+  if(sao) sao.onclick = startAudioOnlyRec;
+  const stao = document.getElementById("btn-stop-audio-only");
+  if(stao) stao.onclick = stopAudioOnlyRec;
+  const svao = document.getElementById("btn-save-audio-only");
+  if(svao) svao.onclick = saveAudioOnly;
+  const dao = document.getElementById("btn-delete-audio-only");
+  if(dao) dao.onclick = () => setState({audioOnlyBlob:null, audioOnlyTranscript:""});
+  const cao = document.getElementById("btn-cancel-audio-only");
+  if(cao) cao.onclick = () => setState({audioOnlyMode:false, audioOnlyBlob:null, audioOnlyTranscript:"", audioOnlyText:""});
+  const aot = document.getElementById("audio-only-text");
+  if(aot) aot.oninput = (e) => {state.audioOnlyText = e.target.value;};
 
   // Toggle select
   document.querySelectorAll("[data-toggle]").forEach(el=>{
