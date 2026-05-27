@@ -440,6 +440,7 @@ let state = {
   testLocation: "",
   testParticipants: "",
   testEquipment: "",
+  additionalInfo: "",
   // Photo editing
   editingPhotoId: null,
   editPhotoText: "",
@@ -852,6 +853,7 @@ function buildPrompt() {
   if (state.testLocation) testDetails += `Lugar: ${state.testLocation}\n`;
   if (state.testParticipants) testDetails += `Participantes: ${state.testParticipants}\n`;
   if (state.testEquipment) testDetails += `Equipos y materiales: ${state.testEquipment}\n`;
+  if (state.additionalInfo) testDetails += `\nInformación adicional:\n${state.additionalInfo}\n`;
 
   const prompt = `Eres un ingeniero de Crystal Lagoons que escribe reportes técnicos de pruebas de I+D.
 Escribe en español técnico profesional.
@@ -1207,7 +1209,7 @@ function renderHeader() {
       <button class="header-back ${showBack?'visible':''}" id="btn-back">←</button>
       <img src="${CL_LOGO}" class="header-logo" alt="CL">
     </div>
-    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9.1</span></span>
+    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9.2</span></span>
   </div>`;
 }
 
@@ -1412,7 +1414,9 @@ function renderReportForm() {
     <input class="form-input" id="custom-participant" placeholder="O escribir otro nombre y presionar +" style="margin-bottom:14px">
     <button class="btn-sm" style="background:var(--turquoise-light);color:var(--turquoise-dark);margin-top:-10px;margin-bottom:14px;width:100%" id="btn-add-custom-participant">+ Agregar otro participante</button>
     <label class="form-label">Equipos y Materiales <span style="color:var(--text2);font-weight:400">(opcional)</span></label>
-    <textarea class="form-textarea" id="test-equipment" rows="2" placeholder="Ej: Turbid\u00edmetro port\u00e1til, pH-metro, c\u00e1mara submarina..." style="margin-bottom:14px">${state.testEquipment}</textarea>`;
+    <textarea class="form-textarea" id="test-equipment" rows="2" placeholder="Ej: Turbid\u00edmetro port\u00e1til, pH-metro, c\u00e1mara submarina..." style="margin-bottom:14px">${state.testEquipment}</textarea>
+    <label class="form-label">Información Adicional <span style="color:var(--text2);font-weight:400">(opcional)</span></label>
+    <textarea class="form-textarea" id="additional-info" rows="3" placeholder="Cualquier información extra relevante: antecedentes, normativas, condiciones ambientales, referencias a pruebas anteriores..." style="margin-bottom:14px">${state.additionalInfo||''}</textarea>`;
 
   html += `<label class="form-label">Lineamientos para Conclusiones</label>
     <textarea class="form-textarea" id="conclusions-text" rows="4" placeholder="Describe los principales lineamientos y puntos clave que deben incluirse en las conclusiones...">${state.conclusions}</textarea>
@@ -1606,6 +1610,8 @@ function attachEvents() {
   if(tl) tl.oninput = (e)=>{state.testLocation=e.target.value;};
   const te = document.getElementById("test-equipment");
   if(te) te.oninput = (e)=>{state.testEquipment=e.target.value;};
+  const ai = document.getElementById("additional-info");
+  if(ai) ai.oninput = (e)=>{state.additionalInfo=e.target.value;};
 
   // Participants
   const addPart = document.getElementById("btn-add-participant");
