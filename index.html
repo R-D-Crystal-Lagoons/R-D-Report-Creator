@@ -325,7 +325,7 @@ const PROJECTS = [
 
 // ═══════ IndexedDB ═══════
 const DB_NAME = "RDReportsDB";
-const DB_VER = 1;
+const DB_VER = 2;
 let db = null;
 
 function openDB() {
@@ -338,6 +338,7 @@ function openDB() {
         const s = d.createObjectStore("photos", {keyPath:"id", autoIncrement:true});
         s.createIndex("folder","folder",{unique:false});
       }
+      if (!d.objectStoreNames.contains("reportData")) d.createObjectStore("reportData", {keyPath:"folder"});
     };
     req.onsuccess = (e) => { db = e.target.result; resolve(db); };
     req.onerror = (e) => reject(e);
@@ -383,6 +384,39 @@ function dbGetByIndex(store, idx, val) {
     tx.objectStore(store).index(idx).getAll(val).onsuccess = (e) => resolve(e.target.result);
     tx.onerror = reject;
   });
+}
+
+function saveReportData() {
+  if (!state.activeFolder || !db) return;
+  const data = {
+    folder: state.activeFolder,
+    reportName: state.reportName,
+    selectedProject: state.selectedProject,
+    manualCode: state.manualCode,
+    useManualCode: state.useManualCode,
+    introGuidelines: state.introGuidelines,
+    introTranscript: state.introTranscript,
+    testDate: state.testDate,
+    testTime: state.testTime,
+    testLocation: state.testLocation,
+    testParticipants: state.testParticipants,
+    testEquipment: state.testEquipment,
+    additionalInfo: state.additionalInfo,
+    conclusions: state.conclusions,
+    conclusionsTranscript: state.conclusionsTranscript,
+  };
+  dbPut("reportData", data).catch(e => console.log("Save report data error", e));
+}
+
+async function loadReportData(folder) {
+  try {
+    const tx = db.transaction("reportData","readonly");
+    return new Promise((resolve) => {
+      const req = tx.objectStore("reportData").get(folder);
+      req.onsuccess = (e) => resolve(e.target.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch(e) { return null; }
 }
 
 // ═══════ State ═══════
@@ -515,7 +549,30 @@ function goHome() {
 
 function openCamera() { setState({screen:"camera", captureText:"", capturedAudioBlob:null, isRecording:false, recordingTime:0}); startCamera(); }
 
-function openReport() { setState({screen:"report", reportName:"", selectedProject:"", manualCode:"", useManualCode:false, projectSearch:"", showProjectDropdown:false, conclusions:"", conclusionsAudioBlob:null, conclusionsRecording:false, conclusionsRecTime:0, generating:false, reportGenerated:false}); }
+async function openReport() {
+  const saved = await loadReportData(state.activeFolder);
+  setState({
+    screen:"report",
+    reportName: saved?.reportName || "",
+    selectedProject: saved?.selectedProject || "",
+    manualCode: saved?.manualCode || "",
+    useManualCode: saved?.useManualCode || false,
+    introGuidelines: saved?.introGuidelines || "",
+    introTranscript: saved?.introTranscript || "",
+    testDate: saved?.testDate || "",
+    testTime: saved?.testTime || "",
+    testLocation: saved?.testLocation || "",
+    testParticipants: saved?.testParticipants || "",
+    testEquipment: saved?.testEquipment || "",
+    additionalInfo: saved?.additionalInfo || "",
+    conclusions: saved?.conclusions || "",
+    conclusionsTranscript: saved?.conclusionsTranscript || "",
+    projectSearch:"", showProjectDropdown:false,
+    conclusionsAudioBlob:null, conclusionsRecording:false, conclusionsRecTime:0,
+    introAudioBlob:null, introRecording:false, introRecTime:0,
+    generating:false, reportGenerated:false, promptCopied:false, claudeResponse:"",
+  });
+}
 
 function goFolder() {
   stopCameraStream();
@@ -1250,6 +1307,48 @@ async function generateDocx(content, photos, reportName, projectCode) {
   return true;
 }
 
+// ═══════ Export Folder as ZIP ═══════
+async function exportFolder() {
+  const fp = folderPhotos();
+  if (fp.length === 0) { alert("No hay contenido para exportar"); return; }
+
+  const zip = new MiniZip();
+  let infoText = `Carpeta: ${state.activeFolder}\nExportado: ${new Date().toLocaleString("es-CL")}\n\n`;
+
+  let photoCount = 0;
+  for (let i = 0; i < fp.length; i++) {
+    const p = fp[i];
+    const prefix = String(i + 1).padStart(3, "0");
+
+    if (p.imageData && !p.isAudioOnly) {
+      // Export photo
+      const b64 = imgToBase64Data(p.imageData);
+      const bytes = base64ToUint8(b64);
+      const ext = p.imageData.includes('image/png') ? 'png' : 'jpg';
+      zip.addFile(`foto_${prefix}.${ext}`, bytes);
+      photoCount++;
+    }
+
+    // Build info entry
+    infoText += `--- Entrada ${i + 1} ${p.isAudioOnly ? '[SOLO AUDIO]' : '[FOTO]'} ---\n`;
+    infoText += `Fecha: ${fmtDate(p.timestamp)}\n`;
+    if (p.text) infoText += `Texto: ${p.text}\n`;
+    if (p.audioTranscript) infoText += `Audio transcrito: ${p.audioTranscript}\n`;
+    infoText += `\n`;
+  }
+
+  zip.addFile("info_carpeta.txt", infoText);
+
+  const blob = await zip.generate();
+  const fileName = `${state.activeFolder.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ ]/g, "_")}_export.zip`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 // ═══════ Generate Report (prompt-based flow) ═══════
 async function generateReport() {
   // This is called when user pastes Claude's response
@@ -1294,7 +1393,7 @@ function renderHeader() {
       <button class="header-back ${showBack?'visible':''}" id="btn-back">←</button>
       <img src="${CL_LOGO}" class="header-logo" alt="CL">
     </div>
-    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9.3</span></span>
+    <span class="header-title">R&D Reports <span style="font-size:9px;opacity:0.6;font-weight:400">v0.9.5</span></span>
   </div>`;
 }
 
@@ -1469,6 +1568,13 @@ function renderFolder() {
   html += `<button class="btn-primary" id="btn-open-report" style="margin-top:16px" ${selCount===0?'disabled':''}>
     📄 Generar Reporte (${selCount} foto${selCount!==1?'s':''} seleccionada${selCount!==1?'s':''})
   </button>`;
+
+  // Export folder button
+  if (fp.length > 0) {
+    html += `<button class="btn-secondary" id="btn-export-folder" style="margin-top:8px;width:100%">
+      📥 Exportar Carpeta (${fp.filter(p=>p.imageData).length} fotos)
+    </button>`;
+  }
 
   return html;
 }
@@ -1665,6 +1771,8 @@ function attachEvents() {
   if(ao) ao.onclick = () => setState({audioOnlyMode:true, audioOnlyBlob:null, audioOnlyTranscript:"", audioOnlyText:""});
   const or = document.getElementById("btn-open-report");
   if(or) or.onclick = openReport;
+  const ef = document.getElementById("btn-export-folder");
+  if(ef) ef.onclick = exportFolder;
 
   // Audio-only controls
   const sao = document.getElementById("btn-start-audio-only");
@@ -1734,44 +1842,44 @@ function attachEvents() {
 
   // Report form
   const rn = document.getElementById("report-name");
-  if(rn) rn.oninput = (e)=>{state.reportName=e.target.value;};
+  if(rn) rn.oninput = (e)=>{state.reportName=e.target.value; saveReportData();};
   const ml = document.getElementById("btn-mode-list");
-  if(ml) ml.onclick = ()=>setState({useManualCode:false});
+  if(ml) ml.onclick = ()=>{setState({useManualCode:false}); saveReportData();};
   const mm = document.getElementById("btn-mode-manual");
-  if(mm) mm.onclick = ()=>setState({useManualCode:true});
+  if(mm) mm.onclick = ()=>{setState({useManualCode:true}); saveReportData();};
   const mc = document.getElementById("manual-code");
-  if(mc) mc.oninput = (e)=>{state.manualCode=e.target.value;};
+  if(mc) mc.oninput = (e)=>{state.manualCode=e.target.value; saveReportData();};
   const ps = document.getElementById("project-search");
   if(ps) { ps.oninput=(e)=>{state.projectSearch=e.target.value;state.showProjectDropdown=true;render();}; ps.onfocus=()=>{state.showProjectDropdown=true;render();}; }
   document.querySelectorAll("[data-project-code]").forEach(el=>{
-    el.onclick = ()=>{state.selectedProject=el.dataset.projectCode;state.projectSearch="";state.showProjectDropdown=false;render();};
+    el.onclick = ()=>{state.selectedProject=el.dataset.projectCode;state.projectSearch="";state.showProjectDropdown=false;saveReportData();render();};
   });
   const conc = document.getElementById("conclusions-text");
-  if(conc) conc.oninput = (e)=>{state.conclusions=e.target.value;};
+  if(conc) conc.oninput = (e)=>{state.conclusions=e.target.value; saveReportData();};
   const ca = document.getElementById("btn-conc-audio");
   if(ca) ca.onclick = ()=>{ state.conclusionsRecording ? stopConcAudioRec() : startConcAudioRec(); };
   const cad = document.getElementById("btn-conc-audio-del");
-  if(cad) cad.onclick = ()=>setState({conclusionsAudioBlob:null, conclusionsTranscript:""});
+  if(cad) cad.onclick = ()=>{setState({conclusionsAudioBlob:null, conclusionsTranscript:""}); saveReportData();};
 
   // Intro audio
   const ig = document.getElementById("intro-guidelines");
-  if(ig) ig.oninput = (e)=>{state.introGuidelines=e.target.value;};
+  if(ig) ig.oninput = (e)=>{state.introGuidelines=e.target.value; saveReportData();};
   const ia = document.getElementById("btn-intro-audio");
   if(ia) ia.onclick = ()=>{ state.introRecording ? stopIntroAudioRec() : startIntroAudioRec(); };
   const iad = document.getElementById("btn-intro-audio-del");
-  if(iad) iad.onclick = ()=>setState({introAudioBlob:null, introTranscript:""});
+  if(iad) iad.onclick = ()=>{setState({introAudioBlob:null, introTranscript:""}); saveReportData();};
 
   // Test details
   const td = document.getElementById("test-date");
-  if(td) td.oninput = (e)=>{state.testDate=e.target.value;};
+  if(td) td.oninput = (e)=>{state.testDate=e.target.value; saveReportData();};
   const tt = document.getElementById("test-time");
-  if(tt) tt.oninput = (e)=>{state.testTime=e.target.value;};
+  if(tt) tt.oninput = (e)=>{state.testTime=e.target.value; saveReportData();};
   const tl = document.getElementById("test-location");
-  if(tl) tl.oninput = (e)=>{state.testLocation=e.target.value;};
+  if(tl) tl.oninput = (e)=>{state.testLocation=e.target.value; saveReportData();};
   const te = document.getElementById("test-equipment");
-  if(te) te.oninput = (e)=>{state.testEquipment=e.target.value;};
+  if(te) te.oninput = (e)=>{state.testEquipment=e.target.value; saveReportData();};
   const ai = document.getElementById("additional-info");
-  if(ai) ai.oninput = (e)=>{state.additionalInfo=e.target.value;};
+  if(ai) ai.oninput = (e)=>{state.additionalInfo=e.target.value; saveReportData();};
 
   // Participants
   const addPart = document.getElementById("btn-add-participant");
@@ -1779,7 +1887,7 @@ function attachEvents() {
     const sel = document.getElementById("participant-select");
     if(sel && sel.value) {
       const parts = (state.testParticipants||'').split(',').map(s=>s.trim()).filter(s=>s);
-      if(!parts.includes(sel.value)) { parts.push(sel.value); state.testParticipants=parts.join(', '); render(); }
+      if(!parts.includes(sel.value)) { parts.push(sel.value); state.testParticipants=parts.join(', '); saveReportData(); render(); }
       sel.value = '';
     }
   };
@@ -1789,7 +1897,7 @@ function attachEvents() {
     if(inp && inp.value.trim()) {
       const parts = (state.testParticipants||'').split(',').map(s=>s.trim()).filter(s=>s);
       if(!parts.includes(inp.value.trim())) { parts.push(inp.value.trim()); state.testParticipants=parts.join(', '); }
-      inp.value=''; render();
+      inp.value=''; saveReportData(); render();
     }
   };
   document.querySelectorAll("[data-remove-participant]").forEach(el=>{
@@ -1797,15 +1905,15 @@ function attachEvents() {
       const name = el.dataset.removeParticipant;
       const parts = (state.testParticipants||'').split(',').map(s=>s.trim()).filter(s=>s&&s!==name);
       state.testParticipants = parts.join(', ');
-      render();
+      saveReportData(); render();
     };
   });
 
   // Editable transcripts
   const ite = document.getElementById("intro-transcript-edit");
-  if(ite) ite.oninput = (e)=>{state.introTranscript=e.target.value;};
+  if(ite) ite.oninput = (e)=>{state.introTranscript=e.target.value; saveReportData();};
   const cte = document.getElementById("conc-transcript-edit");
-  if(cte) cte.oninput = (e)=>{state.conclusionsTranscript=e.target.value;};
+  if(cte) cte.oninput = (e)=>{state.conclusionsTranscript=e.target.value; saveReportData();};
   document.querySelectorAll("[data-remove]").forEach(el=>{
     el.onclick = (e)=>{ e.stopPropagation(); removeFromSelection(Number(el.dataset.remove)); };
   });
